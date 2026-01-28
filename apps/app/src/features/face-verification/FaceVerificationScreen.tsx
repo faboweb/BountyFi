@@ -1,0 +1,213 @@
+// Face Verification Screen – Selfie enrollment for campaigns requiring face recognition
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { RouteProp as RNRouteProp } from '@react-navigation/native';
+import { AppStackParamList } from '../../navigation/AppNavigator';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { api } from '../../api/client';
+import { CameraCapture } from '../../components/CameraCapture';
+import { PhotoPreview } from '../../components/PhotoPreview';
+import { compressImage } from '../../utils/image';
+
+type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
+type RouteProp = RNRouteProp<AppStackParamList, 'FaceVerification'>;
+
+export function FaceVerificationScreen() {
+  const route = useRoute<RouteProp>();
+  const navigation = useNavigation<NavigationProp>();
+  const { campaignId, checkpointId } = route.params;
+
+  const { data: campaign } = useQuery({
+    queryKey: ['campaign', campaignId],
+    queryFn: () => api.campaigns.getById(campaignId),
+  });
+
+  const { data: verificationStatus } = useQuery({
+    queryKey: ['faceVerification', campaignId],
+    queryFn: () => api.faceVerification.getStatus(campaignId),
+    enabled: !!campaignId,
+  });
+
+  const [selfiePhoto, setSelfiePhoto] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+
+  const enrollMutation = useMutation({
+    mutationFn: async (photoUri: string) => {
+      const compressed = await compressImage(photoUri);
+      return api.faceVerification.enroll({
+        campaign_id: campaignId,
+        selfie_photo: compressed,
+      });
+    },
+    onSuccess: () => {
+      Alert.alert('Success', 'Face verification enrolled! You can now participate in this campaign.', [
+        {
+          text: 'Continue',
+          onPress: () => {
+            navigation.replace('SubmitProof', { campaignId, checkpointId });
+          },
+        },
+      ]);
+    },
+    onError: (error: any) => {
+      Alert.alert('Error', error.message || 'Failed to enroll face verification. Please try again.');
+    },
+  });
+
+  const handleSelfieCapture = async (uri: string) => {
+    setSelfiePhoto(uri);
+    setIsCapturing(false);
+  };
+
+  const handleEnroll = async () => {
+    if (!selfiePhoto) {
+      Alert.alert('Error', 'Please take a selfie first');
+      return;
+    }
+    enrollMutation.mutate(selfiePhoto);
+  };
+
+  if (!campaign) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
+  // If already enrolled, redirect to submit proof
+  if (verificationStatus?.is_enrolled) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Already Verified</Text>
+        <Text style={styles.description}>You're already enrolled for this campaign.</Text>
+        <TouchableOpacity
+          style={styles.button}
+          onPress={() => navigation.replace('SubmitProof', { campaignId, checkpointId })}
+        >
+          <Text style={styles.buttonText}>Continue to Task</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  return (
+    <ScrollView style={styles.container}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Face Verification Required</Text>
+        <Text style={styles.description}>
+          This campaign requires face verification to ensure fair participation and prevent fraud.
+        </Text>
+        <Text style={styles.subDescription}>
+          Please take a clear selfie. Your face data will be securely stored and used only for
+          verification purposes.
+        </Text>
+
+        {selfiePhoto ? (
+          <View style={styles.previewContainer}>
+            <PhotoPreview
+              uri={selfiePhoto}
+              onRetake={() => setSelfiePhoto(null)}
+              onContinue={() => {
+                if (!enrollMutation.isPending) {
+                  handleEnroll();
+                }
+              }}
+            />
+            <TouchableOpacity
+              style={[styles.enrollButton, enrollMutation.isPending && styles.buttonDisabled]}
+              onPress={handleEnroll}
+              disabled={enrollMutation.isPending}
+            >
+              {enrollMutation.isPending ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.enrollButtonText}>Enroll Face Verification</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.cameraContainer}>
+            <CameraCapture
+              cameraType="front"
+              onCapture={handleSelfieCapture}
+              onError={(error) => Alert.alert('Error', error)}
+            />
+          </View>
+        )}
+      </View>
+    </ScrollView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  content: {
+    padding: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: '#000',
+  },
+  description: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 8,
+    lineHeight: 22,
+  },
+  subDescription: {
+    fontSize: 14,
+    color: '#8E8E93',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  previewContainer: {
+    marginTop: 16,
+  },
+  cameraContainer: {
+    marginTop: 16,
+    minHeight: 400,
+  },
+  enrollButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  enrollButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    padding: 16,
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+});
