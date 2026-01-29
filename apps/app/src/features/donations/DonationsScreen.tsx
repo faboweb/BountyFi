@@ -1,114 +1,170 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import * as React from 'react';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { AppStackParamList } from '../../navigation/AppNavigator';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme/theme';
+import { Card } from '../../components/Card';
+import { Button } from '../../components/Button';
+import { Badge } from '../../components/Badge';
+
+type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
 export function DonationsScreen() {
-  return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.title}>Support Cleanups</Text>
-        <Text style={styles.subtitle}>
-          Individuals, companies, and NGOs can support BountyFi projects in many ways.
-        </Text>
+  const navigation = useNavigation<NavigationProp>();
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Money donations</Text>
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <TouchableOpacity 
+          style={styles.header}
+          onPress={() => navigation.navigate('DonatorImpactDashboard')}
+          activeOpacity={0.7}
+        >
+          <Badge label="Power the community" variant="gold" style={styles.headerBadge} />
+          <Text style={styles.title}>Support Cleanups</Text>
+          <Text style={styles.subtitle}>
+            Empower BountyFi projects. Every reward dropped makes the world a cleaner place.
+          </Text>
+          <Text style={styles.impactLink}>View Your Impact Dashboard →</Text>
+        </TouchableOpacity>
+
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>💰 Money Donations</Text>
           <Text style={styles.cardText}>
-            Fund future cleanup campaigns, rewards, and logistics. We&apos;ll route funds to the
+            Fund future cleanup campaigns, rewards, and logistics. We'll route funds to the
             highest-impact projects.
           </Text>
-        </View>
+        </Card>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Coffee & food vouchers</Text>
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>☕ Coffee & Food</Text>
           <Text style={styles.cardText}>
             Thank volunteers with coffee, snacks, or meal vouchers they can redeem after cleanups.
           </Text>
-        </View>
+        </Card>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Hotel, sauna & spa vouchers</Text>
+        <Card style={styles.card}>
+          <Text style={styles.cardTitle}>🏨 Hotel & Spa</Text>
           <Text style={styles.cardText}>
             Offer nights in hotels, spa access, or wellness experiences as rewards for top
             contributors.
           </Text>
-        </View>
+        </Card>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Custom partnerships</Text>
+        <Card style={[styles.card, styles.lastCard]}>
+          <Text style={styles.cardTitle}>🤝 Custom Ways</Text>
           <Text style={styles.cardText}>
-            Have another way to support? We&apos;re happy to design custom rewards or long‑term
+            Have another way to support? We're happy to design custom rewards or long‑term
             sponsorships with you.
           </Text>
-        </View>
+        </Card>
 
-        <View style={styles.footerCard}>
-          <Text style={styles.footerTitle}>Get in touch</Text>
+        <View style={styles.footer}>
+          <Text style={styles.footerTitle}>Ready to become a legend?</Text>
           <Text style={styles.footerText}>
-            Email us to discuss donations or partnerships and we&apos;ll get back to you with the
-            next steps.
+            Email us to discuss partnerships and start dropping loot for the community.
           </Text>
-          <Text style={styles.footerHighlight}>contact@bountyfi.org</Text>
+          <Button
+            title="Get in Touch"
+            onPress={() => {}}
+            variant="primary"
+            style={styles.footerButton}
+          />
+          <Text style={styles.email}>contact@bountyfi.org</Text>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.lightGray,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
-  content: {
-    padding: 20,
+  scrollContent: {
+    padding: Spacing.lg,
+    paddingBottom: Spacing.xl * 2,
+  },
+  header: {
+    marginBottom: Spacing.xl,
+    alignItems: 'center',
+  },
+  headerBadge: {
+    marginBottom: Spacing.sm,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#000',
+    ...Typography.heading,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
+    ...Typography.subHeading,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  impactLink: {
+    ...Typography.body,
+    fontWeight: '700',
+    color: Colors.primaryBright,
+    fontSize: 14,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    marginBottom: Spacing.md,
+  },
+  lastCard: {
+    marginBottom: Spacing.xl,
   },
   cardTitle: {
+    ...Typography.body,
+    fontWeight: '800',
     fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
+    color: Colors.primaryDark,
+    marginBottom: Spacing.sm,
   },
   cardText: {
-    fontSize: 14,
-    color: '#555',
+    ...Typography.body,
+    color: '#4B5563', // Slightly darker than textGray for readability
+    lineHeight: 22,
   },
-  footerCard: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    padding: 18,
-    marginTop: 8,
+  footer: {
+    marginTop: Spacing.lg,
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    padding: Spacing.xl,
+    borderRadius: BorderRadius.xl,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
   },
   footerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 6,
+    ...Typography.heading,
+    fontSize: 22,
+    textAlign: 'center',
+    marginBottom: Spacing.sm,
   },
   footerText: {
-    fontSize: 14,
-    color: '#e6f0ff',
-    marginBottom: 8,
+    ...Typography.body,
+    textAlign: 'center',
+    color: Colors.textGray,
+    marginBottom: Spacing.lg,
   },
-  footerHighlight: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+  footerButton: {
+    width: '100%',
+    marginBottom: Spacing.md,
+  },
+  email: {
+    ...Typography.body,
+    fontWeight: '700',
+    color: Colors.primaryBright,
   },
 });
 

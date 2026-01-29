@@ -1,5 +1,5 @@
-// Main App Navigation (Bottom Tabs)
-import React from 'react';
+import * as React from 'react';
+import { View, Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CampaignsScreen } from '../features/campaigns/CampaignsScreen';
@@ -12,6 +12,11 @@ import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { LeaderboardScreen } from '../features/leaderboard/LeaderboardScreen';
 import { LotteryScreen } from '../features/lottery/LotteryScreen';
 import { DonationsScreen } from '../features/donations/DonationsScreen';
+import { DailyTaskSelectionScreen } from '../features/tasks/DailyTaskSelectionScreen';
+import { DailyTaskCameraScreen } from '../features/tasks/DailyTaskCameraScreen';
+import { DonatorImpactDashboardScreen } from '../features/donations/DonatorImpactDashboardScreen';
+
+import { TreasureWalletScreen } from '../features/wallet/TreasureWalletScreen';
 
 export type AppStackParamList = {
   Campaigns: undefined;
@@ -23,36 +28,42 @@ export type AppStackParamList = {
   Profile: undefined;
   Leaderboard: undefined;
   Lottery: { campaignId: string };
+  DailyTaskSelection: undefined;
+  DailyTaskCamera: undefined;
+  DonatorImpactDashboard: undefined;
+  TreasureWallet: undefined;
 };
 
 export type TabParamList = {
-  CampaignsTab: undefined;
+  QuestsTab: undefined;
   ValidateTab: undefined;
-  MySubmissionsTab: undefined;
-  LeaderboardTab: undefined;
-  DonationsTab: undefined;
+  WalletTab: undefined;
   ProfileTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
-function CampaignsStack() {
+function QuestsStack() {
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="Campaigns" component={CampaignsScreen} options={{ title: 'Campaigns' }} />
-      <Stack.Screen name="CampaignDetail" component={CampaignDetailScreen} options={{ title: 'Campaign Details' }} />
-      <Stack.Screen name="FaceVerification" component={FaceVerificationScreen} options={{ title: 'Face Verification' }} />
-      <Stack.Screen name="SubmitProof" component={SubmitProofScreen} options={{ title: 'Submit Proof' }} />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Campaigns" component={CampaignsScreen} />
+      <Stack.Screen name="CampaignDetail" component={CampaignDetailScreen} />
+      <Stack.Screen name="FaceVerification" component={FaceVerificationScreen} />
+      <Stack.Screen name="SubmitProof" component={SubmitProofScreen} />
+      <Stack.Screen name="DailyTaskSelection" component={DailyTaskSelectionScreen} />
+      <Stack.Screen name="DailyTaskCamera" component={DailyTaskCameraScreen} />
+      <Stack.Screen name="DonatorImpactDashboard" component={DonatorImpactDashboardScreen} />
     </Stack.Navigator>
   );
 }
 
-function LeaderboardStack() {
+function WalletStack() {
   return (
-    <Stack.Navigator>
-      <Stack.Screen name="Leaderboard" component={LeaderboardScreen} options={{ title: 'Leaderboard' }} />
-      <Stack.Screen name="Lottery" component={LotteryScreen} options={{ title: 'Lottery' }} />
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
+      <Stack.Screen name="Lottery" component={LotteryScreen} />
+      <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
     </Stack.Navigator>
   );
 }
@@ -62,56 +73,41 @@ export function AppNavigator() {
     <Tab.Navigator
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#007AFF',
+        tabBarActiveTintColor: '#3B82F6',
         tabBarInactiveTintColor: '#8E8E93',
       }}
     >
       <Tab.Screen
-        name="CampaignsTab"
-        component={CampaignsStack}
+        name="QuestsTab"
+        component={QuestsStack}
         options={{
-          title: 'Campaigns',
-          tabBarIcon: () => null, // Add icons later
+          title: 'Quests',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏴</Text>,
         }}
       />
       <Tab.Screen
         name="ValidateTab"
         component={ValidateQueueScreen}
         options={{
-          title: 'Validate',
-          tabBarIcon: () => null,
+          title: 'Verify',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>☑️</Text>,
         }}
       />
       <Tab.Screen
-        name="MySubmissionsTab"
-        component={MySubmissionsScreen}
+        name="WalletTab"
+        component={WalletStack}
         options={{
-          title: 'My Tasks',
-          tabBarIcon: () => null,
+          title: 'Wallet',
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔲</Text>,
         }}
-      />
-      <Tab.Screen
-        name="LeaderboardTab"
-        component={LeaderboardStack}
-        options={{
-          title: 'Leaderboard',
-          tabBarIcon: () => null,
-        }}
-      />
-      <Tab.Screen
-        name="DonationsTab"
-        component={DonationsScreen}
-        options={{
-          title: 'Donations',
-          tabBarIcon: () => null,
-        }}
+        initialParams={{ screen: 'TreasureWallet' } as any}
       />
       <Tab.Screen
         name="ProfileTab"
         component={ProfileScreen}
         options={{
           title: 'Profile',
-          tabBarIcon: () => null,
+          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👤</Text>,
         }}
       />
     </Tab.Navigator>
