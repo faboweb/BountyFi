@@ -4,3 +4,8 @@ node_modules
 .idea
 .vscode
 *.log
+
+# Foundry
+out/
+cache/
+lib/
