@@ -116,10 +116,14 @@ serve(async (req) => {
         } else if (allChecksPass) {
             // Milestone 3: AI Vision Pre-filtering
             try {
-                const aiResp = await fetch('https://cguqjaoeleifeaxktmwv.supabase.co/functions/v1/run_livepeer_inference', {
+                const aiResp = await fetch('https://cguqjaoeleifeaxktmwv.supabase.co/functions/v1/verify_semantic', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ submission_id: submission.id })
+                    body: JSON.stringify({
+                        submission_id: submission.id,
+                        campaign_type: campaign.type || 'action',
+                        campaign_rules: campaign.rules
+                    })
                 });
                 const aiResult = await aiResp.json();
 
@@ -133,7 +137,7 @@ serve(async (req) => {
 
                     trace.steps.push({
                         check: "ai_vision",
-                        status: "PASS",
+                        status: aiDecision === 'AUTO_REJECT' ? "FAIL" : "PASS",
                         details: `AI Reason: ${aiDecision}`
                     });
                 }
