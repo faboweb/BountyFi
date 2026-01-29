@@ -1,27 +1,29 @@
-/**
- * BountyFi card - Playful Victory Edition
- * White bg, 2px border, 16px radius, subtle shadow
- */
-import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
-import { colors, borderRadius, spacing, shadows } from '../theme';
+import * as React from 'react';
+import { View, StyleSheet, ViewStyle, StyleProp } from 'react-native';
+import { Colors, Shadows, BorderRadius, Spacing } from '../theme/theme';
 
-type CardProps = {
+interface CardProps {
   children: React.ReactNode;
-  style?: ViewStyle;
-};
+  style?: StyleProp<ViewStyle>;
+  noPadding?: boolean;
+}
 
-export function Card({ children, style }: CardProps) {
-  return <View style={[styles.card, style]}>{children}</View>;
+export function Card({ children, style, noPadding }: CardProps) {
+  return (
+    <View style={[styles.card, noPadding && { padding: 0 }, style]}>
+      {children}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.white,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     borderWidth: 2,
-    borderColor: colors.borderGray,
-    borderRadius: borderRadius.lg,
-    padding: spacing.lg,
-    ...shadows.card,
+    borderColor: '#E5E7EB',
+    ...Shadows.card,
+    overflow: 'hidden',
   },
 });

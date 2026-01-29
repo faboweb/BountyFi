@@ -1,5 +1,4 @@
-// Profile Screen
-import React from 'react';
+import * as React from 'react';
 import {
   View,
   Text,
@@ -8,11 +7,16 @@ import {
   TouchableOpacity,
   Alert,
   Share,
+  Image,
+  SafeAreaView,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/context';
 import { api } from '../../api/client';
 import { formatWalletAddress } from '../../utils/image';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
+import { Card } from '../../components/Card';
+import { Badge } from '../../components/Badge';
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
@@ -30,14 +34,10 @@ export function ProfileScreen() {
   });
 
   const handleShareReferral = async () => {
-    if (!referralCode) {
-      return;
-    }
-
+    if (!referralCode) return;
     try {
       await Share.share({
-        message: `Join BountyFi with my code ${referralCode.code} and get +1 ticket! Download the app: [app link]`,
-        title: 'Share Referral Code',
+        message: `Join BountyFi with my code ${referralCode.code} and get +1 ticket!`,
       });
     } catch (error) {
       console.error('Share failed:', error);
@@ -45,176 +45,313 @@ export function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure you want to logout?', [
+    Alert.alert('Logout', 'Are you sure?', [
       { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Logout',
-        style: 'destructive',
-        onPress: async () => {
-          await logout();
-        },
-      },
+      { text: 'Logout', style: 'destructive', onPress: async () => await logout() },
     ]);
   };
 
   const displayUser = userData || user;
 
-  if (!displayUser) {
-    return (
-      <View style={styles.container}>
-        <Text>Loading...</Text>
-      </View>
-    );
-  }
+  if (!displayUser) return null;
 
   return (
-    <ScrollView style={styles.container}>
-      <View style={styles.content}>
-        {/* User Info */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Email</Text>
-            <Text style={styles.value}>{displayUser.email}</Text>
-          </View>
-          <View style={styles.infoRow}>
-            <Text style={styles.label}>Wallet</Text>
-            <Text style={styles.value}>{formatWalletAddress(displayUser.wallet_address)}</Text>
-          </View>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+           <Text style={styles.headerTitle}>Profile</Text>
+           <TouchableOpacity onPress={handleLogout} style={styles.settingsBtn}>
+             <Text style={styles.settingsIcon}>⚙️</Text>
+           </TouchableOpacity>
         </View>
 
-        {/* Tickets */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Tickets</Text>
-          <Text style={styles.ticketCount}>{displayUser.tickets}</Text>
-          <Text style={styles.ticketLabel}>Total tickets earned</Text>
-        </View>
-
-        {/* Referral Code */}
-        {referralCode && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Referral Code</Text>
-            <View style={styles.referralContainer}>
-              <Text style={styles.referralCode}>{referralCode.code}</Text>
-              <TouchableOpacity style={styles.shareButton} onPress={handleShareReferral}>
-                <Text style={styles.shareButtonText}>Share</Text>
-              </TouchableOpacity>
+        <View style={styles.content}>
+          <View style={styles.userSection}>
+            <View style={styles.avatarLarge}>
+               <Text style={styles.avatarLargeText}>
+                 {displayUser.email ? displayUser.email[0].toUpperCase() : 'U'}
+               </Text>
+               <View style={styles.levelBadge}>
+                 <Text style={styles.levelText}>LVL 12</Text>
+               </View>
             </View>
-            <Text style={styles.referralCount}>
-              {referralCode.referrals_count} users referred
-            </Text>
+            <Text style={styles.userName}>{displayUser.email}</Text>
+            <TouchableOpacity style={styles.walletBadge}>
+              <Text style={styles.walletAddress}>{formatWalletAddress(displayUser.wallet_address)}</Text>
+              <Text style={styles.copyIcon}>❐</Text>
+            </TouchableOpacity>
           </View>
-        )}
 
-        {/* Validator Stats */}
-        {displayUser.validations_completed !== undefined && (
+          <View style={styles.statsGrid}>
+            <Card style={styles.statCard}>
+              <Text style={styles.statVal}>{displayUser.tickets || 0}</Text>
+              <Text style={styles.statLabel}>Tickets</Text>
+            </Card>
+            <Card style={styles.statCard}>
+              <Text style={styles.statVal}>{displayUser.validations_completed || 0}</Text>
+              <Text style={styles.statLabel}>Verified</Text>
+            </Card>
+            <Card style={styles.statCard}>
+              <Text style={[styles.statVal, { color: Colors.primaryBright }]}>{referralCode?.referrals_count || 0}</Text>
+              <Text style={styles.statLabel}>Friends</Text>
+            </Card>
+          </View>
+
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Validator Stats</Text>
-            <View style={styles.infoRow}>
-              <Text style={styles.label}>Validations Completed</Text>
-              <Text style={styles.value}>{displayUser.validations_completed}</Text>
-            </View>
-            {displayUser.accuracy_rate !== undefined && (
-              <View style={styles.infoRow}>
-                <Text style={styles.label}>Accuracy Rate</Text>
-                <Text style={styles.value}>
-                  {(displayUser.accuracy_rate * 100).toFixed(1)}%
-                </Text>
+            <Text style={styles.sectionTitle}>MY IMPACT</Text>
+            <Card style={styles.impactCard}>
+              <View style={styles.impactRow}>
+                <View style={styles.impactIcon}><Text style={{ fontSize: 24 }}>🌱</Text></View>
+                <View>
+                  <Text style={styles.impactVal}>12.5 kg</Text>
+                  <Text style={styles.impactLabel}>Plastic Removed</Text>
+                </View>
               </View>
-            )}
+            </Card>
           </View>
-        )}
 
-        {/* Logout */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-    </ScrollView>
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>INVITE FRIENDS</Text>
+            <Card style={styles.referralCard}>
+              <Text style={styles.referralDesc}>Give 50 tickets to friends and get 50 tickets when they verify their first mission.</Text>
+              <View style={styles.referralCodeBox}>
+                <Text style={styles.referralCode}>{referralCode?.code || 'BOUNTY50'}</Text>
+                <TouchableOpacity style={styles.shareCodeBtn} onPress={handleShareReferral}>
+                  <Text style={styles.shareCodeText}>Share</Text>
+                </TouchableOpacity>
+              </View>
+            </Card>
+          </View>
+
+          <View style={styles.menuSection}>
+            <TouchableOpacity style={styles.menuItem}>
+              <Text style={styles.menuIcon}>👤</Text>
+              <Text style={styles.menuText}>Personal Information</Text>
+              <Text style={styles.menuArrow}>→</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem}>
+              <Text style={styles.menuIcon}>🔔</Text>
+              <Text style={styles.menuText}>Notifications</Text>
+              <Text style={styles.menuArrow}>→</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem}>
+              <Text style={styles.menuIcon}>🛡️</Text>
+              <Text style={styles.menuText}>Privacy & Security</Text>
+              <Text style={styles.menuArrow}>→</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ height: 100 }} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.white,
+  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
-  content: {
-    padding: 16,
-  },
-  section: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  infoRow: {
+  header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    alignItems: 'center',
+    padding: Spacing.md,
   },
-  label: {
-    fontSize: 14,
-    color: '#8E8E93',
+  headerTitle: {
+    ...Typography.heading,
+    fontSize: 24,
   },
-  value: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#000',
+  settingsBtn: {
+    padding: 8,
   },
-  ticketCount: {
-    fontSize: 48,
-    fontWeight: 'bold',
-    color: '#007AFF',
-    textAlign: 'center',
+  settingsIcon: {
+    fontSize: 24,
   },
-  ticketLabel: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-    marginTop: 4,
+  content: {
+    padding: Spacing.md,
   },
-  referralContainer: {
+  userSection: {
+    alignItems: 'center',
+    marginBottom: Spacing.xl,
+  },
+  avatarLarge: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: '#EFF6FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+    position: 'relative',
+    borderWidth: 4,
+    borderColor: '#DBEAFE',
+  },
+  avatarLargeText: {
+    fontSize: 40,
+    fontWeight: '900',
+    color: Colors.primaryBright,
+  },
+  levelBadge: {
+    position: 'absolute',
+    bottom: -8,
+    backgroundColor: Colors.accentGold,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: Colors.white,
+  },
+  levelText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: Colors.white,
+  },
+  userName: {
+    ...Typography.heading,
+    fontSize: 20,
+    marginBottom: Spacing.xs,
+  },
+  walletBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: BorderRadius.full,
+  },
+  walletAddress: {
+    fontSize: 12,
+    color: Colors.textGray,
+    marginRight: 6,
+    fontWeight: '700',
+  },
+  copyIcon: {
+    fontSize: 12,
+    color: Colors.primaryBright,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.xl,
+  },
+  statCard: {
+    width: '31%',
+    alignItems: 'center',
+    padding: Spacing.md,
+  },
+  statVal: {
+    ...Typography.heading,
+    fontSize: 18,
+  },
+  statLabel: {
+    fontSize: 12,
+    color: Colors.textGray,
+    fontWeight: '700',
+  },
+  section: {
+    marginBottom: Spacing.xl,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: Colors.textGray,
+    marginBottom: Spacing.md,
+    letterSpacing: 1,
+  },
+  impactCard: {
+    padding: Spacing.md,
+    backgroundColor: '#F0FDF4',
+    borderColor: '#DCFCE7',
+  },
+  impactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  impactIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.white,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
+    ...Shadows.card,
+  },
+  impactVal: {
+    ...Typography.heading,
+    fontSize: 18,
+    color: Colors.success,
+  },
+  impactLabel: {
+    fontSize: 12,
+    color: Colors.textGray,
+    fontWeight: '700',
+  },
+  referralCard: {
+    padding: Spacing.lg,
+    backgroundColor: '#EFF6FF',
+    borderColor: '#DBEAFE',
+  },
+  referralDesc: {
+    fontSize: 14,
+    color: Colors.primaryDark,
+    lineHeight: 20,
+    marginBottom: Spacing.md,
+    fontWeight: '500',
+  },
+  referralCodeBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.md,
+    padding: 4,
+    paddingLeft: 12,
   },
   referralCode: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#007AFF',
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '900',
+    color: Colors.primaryBright,
+    letterSpacing: 2,
+  },
+  shareCodeBtn: {
+    backgroundColor: Colors.primaryBright,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: 10,
+    borderRadius: BorderRadius.md,
+  },
+  shareCodeText: {
+    color: Colors.white,
+    fontWeight: '800',
+  },
+  menuSection: {
+    marginBottom: Spacing.xl,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  menuIcon: {
+    fontSize: 20,
+    marginRight: Spacing.md,
+    width: 24,
+    textAlign: 'center',
+  },
+  menuText: {
+    ...Typography.body,
+    fontWeight: '700',
     flex: 1,
   },
-  shareButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-  },
-  shareButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  referralCount: {
-    fontSize: 12,
-    color: '#8E8E93',
-  },
-  logoutButton: {
-    backgroundColor: '#FF3B30',
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  logoutButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+  menuArrow: {
+    color: Colors.textGray,
+    fontWeight: 'bold',
   },
 });

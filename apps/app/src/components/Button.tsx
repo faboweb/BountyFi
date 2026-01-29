@@ -1,96 +1,94 @@
-/**
- * BountyFi buttons - Playful Victory Edition
- * Primary: blue gradient; Secondary: outline; Success: green
- */
-import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
-  ViewStyle,
-  TextStyle,
-  ActivityIndicator,
-} from 'react-native';
-import { colors, typography, borderRadius, spacing, shadows } from '../theme';
+import * as React from 'react';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, Typography, Shadows, BorderRadius, Spacing } from '../theme/theme';
 
-type Variant = 'primary' | 'secondary' | 'success';
-
-type ButtonProps = {
+interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: Variant;
-  disabled?: boolean;
-  loading?: boolean;
+  variant?: 'primary' | 'secondary' | 'success';
   style?: ViewStyle;
   textStyle?: TextStyle;
-};
+  disabled?: boolean;
+}
 
-export function Button({
-  title,
-  onPress,
-  variant = 'primary',
-  disabled = false,
-  loading = false,
-  style,
-  textStyle,
-}: ButtonProps) {
-  const isDisabled = disabled || loading;
-  const buttonStyle = [
-    styles.base,
-    styles[variant],
-    isDisabled && styles.disabled,
-  ];
+export function Button({ title, onPress, variant = 'primary', style, textStyle, disabled }: ButtonProps) {
+  const opacity = disabled ? 0.5 : 0.8;
+  
+  if (variant === 'primary') {
+    return (
+      <TouchableOpacity 
+        onPress={disabled ? undefined : onPress} 
+        activeOpacity={opacity} 
+        style={[styles.shadow, style, disabled && { opacity: 0.5 }]}
+      >
+        <LinearGradient
+          colors={Colors.primaryGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.primaryButton}
+        >
+          <Text style={[styles.buttonText, textStyle]}>{title}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
 
-  const getTextColor = (): string => {
-    if (variant === 'secondary') return colors.admiralBlueDark;
-    return colors.white;
-  };
+  if (variant === 'success') {
+    return (
+      <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={[styles.shadow, style]}>
+        <LinearGradient
+          colors={Colors.successGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.successButton}
+        >
+          <Text style={[styles.buttonText, textStyle]}>{title}</Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  }
 
   return (
     <TouchableOpacity
-      style={[buttonStyle, style]}
       onPress={onPress}
-      disabled={isDisabled}
-      activeOpacity={0.85}
+      activeOpacity={0.7}
+      style={[styles.secondaryButton, style]}
     >
-      {loading ? (
-        <ActivityIndicator color={getTextColor()} />
-      ) : (
-        <Text style={[styles.text, { color: getTextColor() }, textStyle]}>
-          {title}
-        </Text>
-      )}
+      <Text style={[styles.secondaryButtonText, textStyle]}>{title}</Text>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.xl,
-    borderRadius: borderRadius.md,
+  shadow: Shadows.primary,
+  primaryButton: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 52,
   },
-  primary: {
-    backgroundColor: colors.admiralBlueBright,
-    ...shadows.primary,
+  successButton: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  secondary: {
-    backgroundColor: 'transparent',
+  secondaryButton: {
+    paddingVertical: Spacing.md - 3, // Adjust for border
+    paddingHorizontal: Spacing.xl - 3,
+    borderRadius: BorderRadius.md,
     borderWidth: 3,
-    borderColor: colors.admiralBlueBright,
-    paddingVertical: spacing.md - 2,
+    borderColor: Colors.primaryBright,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  success: {
-    backgroundColor: colors.successGreen,
-    ...shadows.card,
-  },
-  disabled: {
-    opacity: 0.6,
-  },
-  text: {
-    ...typography.button,
+  buttonText: Typography.button,
+  secondaryButtonText: {
+    ...Typography.button,
+    color: Colors.primaryDark,
   },
 });

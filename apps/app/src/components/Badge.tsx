@@ -1,36 +1,51 @@
-/**
- * BountyFi badge / ticket chip - Playful Victory Edition
- * Gold gradient feel, admiral blue text, 8px radius
- */
-import React from 'react';
-import { View, Text, StyleSheet, ViewStyle } from 'react-native';
-import { colors, typography, borderRadius, spacing } from '../theme';
+import * as React from 'react';
+import { View, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Colors, Typography, Shadows, BorderRadius, Spacing } from '../theme/theme';
 
-type BadgeProps = {
+interface BadgeProps {
   label: string;
+  variant?: 'gold' | 'success' | 'blue';
   style?: ViewStyle;
-};
+  textStyle?: TextStyle;
+}
 
-export function Badge({ label, style }: BadgeProps) {
+export function Badge({ label, variant = 'gold', style, textStyle }: BadgeProps) {
+  let colors: readonly [string, string, ...string[]] = Colors.goldGradient;
+  let textColor = Colors.primaryDark;
+
+  if (variant === 'success') {
+    colors = Colors.successGradient;
+    textColor = Colors.white;
+  } else if (variant === 'blue') {
+    colors = Colors.primaryGradient;
+    textColor = Colors.white;
+  }
+
   return (
-    <View style={[styles.badge, style]}>
-      <Text style={styles.text}>{label}</Text>
-    </View>
+    <LinearGradient
+      colors={colors}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={[styles.badge, style]}
+    >
+      <Text style={[styles.label, { color: textColor }, textStyle]}>{label}</Text>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
   badge: {
-    backgroundColor: colors.winnerGold,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: borderRadius.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.sm,
     alignSelf: 'flex-start',
+    ...Shadows.card,
   },
-  text: {
-    ...typography.button,
-    fontSize: 14,
-    letterSpacing: 1,
-    color: colors.admiralBlueDark,
+  label: {
+    ...Typography.body,
+    fontSize: 12,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
 });

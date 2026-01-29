@@ -80,17 +80,23 @@ serve(async (req) => {
         // We'll skip complex atomic increment for hackathon MVP and just trust client/edge logic
         const { data: validator } = await supabaseClient
             .from('validators')
-            .select('validations_today, tickets_earned')
+            .select('validations_today, total_validations, tickets_earned')
             .eq('user_id', validator_id)
             .single()
 
+        let newTotal = 1
+        let newToday = 1
+
         // Upsert validator stats
         if (validator) {
+            newTotal = (validator.total_validations || 0) + 1
+            newToday = (validator.validations_today || 0) + 1
+
             await supabaseClient
                 .from('validators')
                 .update({
-                    validations_today: validator.validations_today + 1,
-                    total_validations: (validator.total_validations || 0) + 1
+                    validations_today: newToday,
+                    total_validations: newTotal
                 })
                 .eq('user_id', validator_id)
         } else {
@@ -101,6 +107,19 @@ serve(async (req) => {
                     validations_today: 1,
                     total_validations: 1
                 })
+        }
+
+        // 4. Milestone Reward: 1 ticket for every 10 validations
+        if (newTotal % 10 === 0) {
+            await supabaseClient
+                .from('tickets')
+                .insert({
+                    user_id: validator_id,
+                    amount: 1,
+                    source: 'validator_milestone',
+                    // tx_hash left null, to be picked up by settle_onchain or similar process
+                })
+            console.log(`Validator ${validator_id} hit milestone ${newTotal}: +1 ticket queue`)
         }
 
         return new Response(
