@@ -28,7 +28,7 @@ const createApiClient = (): AxiosInstance => {
       'Content-Type': 'application/json',
     },
   });
-  
+
   // Add auth token to requests
   client.interceptors.request.use(async (config) => {
     const token = await SecureStore.getItemAsync('auth_token');
@@ -37,7 +37,7 @@ const createApiClient = (): AxiosInstance => {
     }
     return config;
   });
-  
+
   // Handle 401 errors (token expired)
   client.interceptors.response.use(
     (response) => response,
@@ -50,7 +50,7 @@ const createApiClient = (): AxiosInstance => {
       return Promise.reject(error);
     }
   );
-  
+
   return client;
 };
 
@@ -62,7 +62,13 @@ export const authApi = {
     const response = await apiClient.post<AuthResponse>('/auth/coinbase', request);
     return response.data;
   },
+
+  async loginWithWallet(request: LoginWithWalletRequest): Promise<AuthResponse> {
+    const response = await apiClient.post<AuthResponse>('/auth/wallet', request);
+    return response.data;
+  },
 };
+
 
 // Campaigns API
 export const campaignsApi = {
@@ -70,7 +76,7 @@ export const campaignsApi = {
     const response = await apiClient.get<Campaign[]>('/campaigns');
     return response.data;
   },
-  
+
   async getById(id: string): Promise<Campaign> {
     const response = await apiClient.get<Campaign>(`/campaigns/${id}`);
     return response.data;
@@ -105,7 +111,7 @@ export const submissionsApi = {
     formData.append('gps_lng', request.gps_lng.toString());
     formData.append('before_timestamp', request.before_timestamp);
     formData.append('after_timestamp', request.after_timestamp);
-    
+
     const response = await apiClient.post<Submission>('/submissions', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -113,17 +119,17 @@ export const submissionsApi = {
     });
     return response.data;
   },
-  
+
   async getPending(): Promise<Submission[]> {
     const response = await apiClient.get<Submission[]>('/submissions/pending');
     return response.data;
   },
-  
+
   async getMy(): Promise<Submission[]> {
     const response = await apiClient.get<Submission[]>('/submissions/my');
     return response.data;
   },
-  
+
   async getById(id: string): Promise<Submission> {
     const response = await apiClient.get<Submission>(`/submissions/${id}`);
     return response.data;
@@ -167,7 +173,7 @@ export const referralsApi = {
     const response = await apiClient.post('/referrals/apply', request);
     return response.data;
   },
-  
+
   async getMyCode(): Promise<ReferralCode> {
     const response = await apiClient.get<ReferralCode>('/referrals/my-code');
     return response.data;
@@ -194,7 +200,7 @@ export const faceVerificationApi = {
       type: 'image/jpeg',
       name: 'selfie.jpg',
     } as any);
-    
+
     const response = await apiClient.post('/face-verification/enroll', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
@@ -202,7 +208,7 @@ export const faceVerificationApi = {
     });
     return response.data;
   },
-  
+
   async getStatus(campaignId: string): Promise<FaceVerificationStatusResponse> {
     const response = await apiClient.get<FaceVerificationStatusResponse>(`/face-verification/status/${campaignId}`);
     return response.data;
@@ -213,14 +219,14 @@ export const faceVerificationApi = {
 export const api = API_CONFIG.USE_MOCK_API
   ? require('./mock').mockApi
   : {
-      auth: authApi,
-      campaigns: campaignsApi,
-      submissions: submissionsApi,
-      validations: validationsApi,
-      users: usersApi,
-      leaderboard: leaderboardApi,
-      lottery: lotteryApi,
-      referrals: referralsApi,
-      shareCard: shareCardApi,
-      faceVerification: faceVerificationApi,
-    };
+    auth: authApi,
+    campaigns: campaignsApi,
+    submissions: submissionsApi,
+    validations: validationsApi,
+    users: usersApi,
+    leaderboard: leaderboardApi,
+    lottery: lotteryApi,
+    referrals: referralsApi,
+    shareCard: shareCardApi,
+    faceVerification: faceVerificationApi,
+  };

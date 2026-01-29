@@ -20,6 +20,8 @@ const queryClient = new QueryClient({
 function AppContent() {
   const { isAuthenticated, isLoading } = useAuth();
 
+  console.log('[AppContent] Authentication state:', { isAuthenticated, isLoading });
+
   if (isLoading) {
     return null; // Or a loading screen
   }

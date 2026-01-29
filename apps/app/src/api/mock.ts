@@ -11,7 +11,9 @@ import {
   CoinbaseLoginRequest,
   SubmitSubmissionRequest,
   ValidationRequest,
+  LoginWithWalletRequest,
   ReferralApplyRequest,
+
   ReferralCode,
   ShareCardResponse,
   FaceVerificationEnrollRequest,
@@ -35,20 +37,20 @@ let mockValidations: { [submissionId: string]: any[] } = {};
 // Mock WebSocket event emitter
 class MockWebSocket {
   private listeners: { [event: string]: Function[] } = {};
-  
+
   on(event: string, callback: Function) {
     if (!this.listeners[event]) {
       this.listeners[event] = [];
     }
     this.listeners[event].push(callback);
   }
-  
+
   emit(event: string, data: any) {
     if (this.listeners[event]) {
       this.listeners[event].forEach(callback => callback(data));
     }
   }
-  
+
   removeListener(event: string, callback: Function) {
     if (this.listeners[event]) {
       this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
@@ -70,7 +72,18 @@ export const mockAuth = {
       user_id: MOCK_USER.id,
     };
   },
+
+  async loginWithWallet(request: LoginWithWalletRequest): Promise<AuthResponse> {
+    await delay(API_CONFIG.MOCK_DELAY);
+    return {
+      token: 'mock_wallet_token_' + Date.now(),
+      wallet_address: request.wallet_address,
+      email: 'demo@example.com',
+      user_id: 'user_demo_' + Date.now(),
+    };
+  },
 };
+
 
 // Campaigns API
 export const mockCampaigns = {
@@ -78,7 +91,7 @@ export const mockCampaigns = {
     await delay(API_CONFIG.MOCK_DELAY);
     return [...MOCK_CAMPAIGNS];
   },
-  
+
   async getById(id: string): Promise<Campaign> {
     await delay(API_CONFIG.MOCK_DELAY);
     const campaign = MOCK_CAMPAIGNS.find(c => c.id === id);
@@ -93,7 +106,7 @@ export const mockCampaigns = {
 export const mockSubmissionsApi = {
   async submit(request: SubmitSubmissionRequest): Promise<Submission> {
     await delay(API_CONFIG.MOCK_DELAY + 200); // Longer delay for upload
-    
+
     const newSubmission: Submission = {
       id: 'submission_' + Date.now(),
       user_id: MOCK_USER.id,
@@ -110,28 +123,28 @@ export const mockSubmissionsApi = {
       votes: [],
       created_at: new Date().toISOString(),
     };
-    
+
     mockSubmissions.push(newSubmission);
-    
+
     // Simulate WebSocket event after a delay
     setTimeout(() => {
       mockWebSocket.emit('submission.created', { submission: newSubmission });
     }, 1000);
-    
+
     return newSubmission;
   },
-  
+
   async getPending(): Promise<Submission[]> {
     await delay(API_CONFIG.MOCK_DELAY);
     // Return submissions that need validation (not yet validated by current user)
     return mockSubmissions.filter(s => s.status === 'pending');
   },
-  
+
   async getMy(): Promise<Submission[]> {
     await delay(API_CONFIG.MOCK_DELAY);
     return mockSubmissions.filter(s => s.user_id === MOCK_USER.id);
   },
-  
+
   async getById(id: string): Promise<Submission> {
     await delay(API_CONFIG.MOCK_DELAY);
     const submission = mockSubmissions.find(s => s.id === id);
@@ -146,12 +159,12 @@ export const mockSubmissionsApi = {
 export const mockValidationsApi = {
   async submit(request: ValidationRequest): Promise<void> {
     await delay(API_CONFIG.MOCK_DELAY);
-    
+
     const submission = mockSubmissions.find(s => s.id === request.submission_id);
     if (!submission) {
       throw new Error('Submission not found');
     }
-    
+
     // Add validation vote
     const validation = {
       id: 'validation_' + Date.now(),
@@ -160,13 +173,13 @@ export const mockValidationsApi = {
       vote: request.vote,
       created_at: new Date().toISOString(),
     };
-    
+
     submission.votes.push(validation);
-    
+
     // Simulate consensus logic
     const approveCount = submission.votes.filter(v => v.vote === 'approve').length;
     const rejectCount = submission.votes.filter(v => v.vote === 'reject').length;
-    
+
     // Emit WebSocket event
     setTimeout(() => {
       mockWebSocket.emit('validation.count.updated', {
@@ -175,7 +188,7 @@ export const mockValidationsApi = {
         reject_count: rejectCount,
         total_votes: submission.votes.length,
       });
-      
+
       // If we have 3 votes, determine consensus
       if (submission.votes.length >= 3) {
         if (approveCount >= 2) {
@@ -237,20 +250,20 @@ export const mockLottery = {
 export const mockReferrals = {
   async apply(request: ReferralApplyRequest): Promise<{ success: boolean; message: string }> {
     await delay(API_CONFIG.MOCK_DELAY);
-    
+
     // Mock validation: code must be alphanumeric and 6-10 chars
     if (!/^[A-Z0-9]{6,10}$/.test(request.code)) {
       return { success: false, message: 'Invalid referral code format' };
     }
-    
+
     // Mock: code already used
     if (request.code === 'USED123') {
       return { success: false, message: 'Referral code already used' };
     }
-    
+
     return { success: true, message: 'Referral code applied! +1 ticket' };
   },
-  
+
   async getMyCode(): Promise<ReferralCode> {
     await delay(API_CONFIG.MOCK_DELAY);
     return {
@@ -264,7 +277,7 @@ export const mockReferrals = {
 export const mockShareCard = {
   async generate(submissionId: string): Promise<ShareCardResponse> {
     await delay(API_CONFIG.MOCK_DELAY + 300);
-    
+
     // Return mock image URL (in real app, this would be generated client-side)
     return {
       image_url: `https://via.placeholder.com/800x600?text=Share+Card+${submissionId}`,
@@ -279,19 +292,19 @@ const enrolledFaceVerifications: { [key: string]: boolean } = {}; // campaign_id
 export const mockFaceVerification = {
   async enroll(request: FaceVerificationEnrollRequest): Promise<{ success: boolean; message: string }> {
     await delay(API_CONFIG.MOCK_DELAY + 200);
-    
+
     // Store enrollment status
     enrolledFaceVerifications[request.campaign_id] = true;
-    
+
     return {
       success: true,
       message: 'Face verification enrolled successfully',
     };
   },
-  
+
   async getStatus(campaignId: string): Promise<FaceVerificationStatusResponse> {
     await delay(API_CONFIG.MOCK_DELAY);
-    
+
     return {
       is_enrolled: enrolledFaceVerifications[campaignId] || false,
       campaign_id: campaignId,

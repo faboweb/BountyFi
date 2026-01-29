@@ -3,15 +3,18 @@ import React, { createContext, useContext, useState, useEffect, ReactNode } from
 import { authStorage } from './storage';
 import { api } from '../api/client';
 import { AuthResponse, User } from '../api/types';
+import { Wallet } from 'ethers';
+
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  loginWithCoinbase: (referralCode?: string, credentials?: { coinbase_access_token: string; wallet_address?: string }) => Promise<AuthResponse>;
+  loginWithLocalKey: (referralCode?: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -39,17 +42,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithCoinbase = async (
-    referralCode?: string,
-    credentials?: { coinbase_access_token: string; wallet_address?: string }
-  ): Promise<AuthResponse> => {
+  const loginWithLocalKey = async (referralCode?: string): Promise<AuthResponse> => {
     try {
-      const coinbaseToken = credentials?.coinbase_access_token ?? (await getCoinbaseAccessToken());
-      const authResponse = await api.auth.loginWithCoinbase({
-        coinbase_access_token: coinbaseToken,
-        wallet_address: credentials?.wallet_address,
+      setIsLoading(true);
+      
+      // 1. Get or create local private key
+      let privateKey = await authStorage.getPrivateKey();
+      if (!privateKey) {
+        console.log('[AuthContext] No local key found, generating new wallet...');
+        const wallet = Wallet.createRandom();
+        privateKey = wallet.privateKey;
+        await authStorage.savePrivateKey(privateKey);
+      }
+      
+      const wallet = new Wallet(privateKey);
+      const walletAddress = wallet.address;
+      console.log('[AuthContext] Using wallet:', walletAddress);
+
+      // 2. Login with wallet address (and signature in real app)
+      const authResponse = await api.auth.loginWithWallet({
+        wallet_address: walletAddress,
+        referral_code: referralCode,
       });
 
+      console.log('[AuthContext] loginWithWallet API response:', authResponse);
+
+      // 3. Save to storage
       await authStorage.saveToken(authResponse.token);
       await authStorage.saveUser({
         id: authResponse.user_id,
@@ -57,30 +75,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         email: authResponse.email ?? '',
       });
 
-      if (referralCode) {
-        try {
-          await api.referrals.apply({ code: referralCode });
-        } catch (error) {
-          console.error('Referral apply failed:', error);
-        }
-      }
-
+      // 4. Fetch user profile
       const userData = await api.users.getMe();
       setUser(userData);
+      
       return authResponse;
     } catch (error) {
-      console.error('Login failed:', error);
+      console.error('[AuthContext] Login failed:', error);
       throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  /** Gets Coinbase access token. Dev: stub; prod: Coinbase OAuth flow. */
-  async function getCoinbaseAccessToken(): Promise<string> {
-    // Stub for development. Replace with:
-    // - expo-auth-session or WebBrowser to Coinbase OAuth URL
-    // - Redirect back with code, exchange for access_token on backend or in app
-    return 'dev_coinbase_stub_' + Date.now();
-  }
+
+
 
   const logout = async () => {
     await authStorage.clear();
@@ -102,9 +111,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         isLoading,
         isAuthenticated: !!user,
-        loginWithCoinbase,
+        loginWithLocalKey,
         logout,
         refreshUser,
+
       }}
     >
       {children}

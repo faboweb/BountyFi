@@ -12,7 +12,7 @@ import {
   Dimensions,
   Animated,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
+// MapView removed to bypass RNMapsAirModule error
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/context';
@@ -195,26 +195,10 @@ export function ValidateQueueScreen() {
                     <Badge label="SELFIE" style={styles.photoBadge} variant="gold" />
                  </View>
                  <View style={styles.checkinMapContainer}>
-                    <MapView
-                      provider={PROVIDER_DEFAULT}
-                      style={styles.map}
-                      initialRegion={{
-                        latitude: currentSubmission.gps_lat,
-                        longitude: currentSubmission.gps_lng,
-                        latitudeDelta: 0.005,
-                        longitudeDelta: 0.005,
-                      }}
-                      liteMode={true}
-                      scrollEnabled={false}
-                      zoomEnabled={false}
-                    >
-                      <Marker
-                        coordinate={{
-                          latitude: currentSubmission.gps_lat,
-                          longitude: currentSubmission.gps_lng,
-                        }}
-                      />
-                    </MapView>
+                    <View style={[styles.map, { backgroundColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' }]}>
+                        <Text style={{ fontSize: 32 }}>📍</Text>
+                        <Text style={{ fontSize: 10, color: Colors.textGray, marginTop: 8 }}>Map Disabled</Text>
+                    </View>
                     <View style={styles.mapBadge}>
                         <Text style={styles.mapBadgeText}>📍 Verified Location</Text>
                     </View>

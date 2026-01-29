@@ -13,5 +13,5 @@ export const CDP_CONFIG = {
   // Required for OAuth (Google, Apple, X) in React Native – deep link back to app
   nativeOAuthCallback: 'bountyfi://oauth-callback',
   // Optional: enable auth methods (default includes email)
-  authMethods: ['email', 'oauth:google'] as const,
+  authMethods: ['email', 'oauth:google', 'oauth:apple'] as const,
 };

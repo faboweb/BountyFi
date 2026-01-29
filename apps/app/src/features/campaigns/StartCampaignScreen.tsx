@@ -15,17 +15,8 @@ import * as Location from 'expo-location';
 import { Button } from '../../components';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 
-// react-native-maps requires a dev build; Expo Go doesn't include its native module.
-const isExpoGo = Constants.appOwnership === 'expo';
-let MapView: typeof import('react-native-maps').default | null = null;
-let Marker: typeof import('react-native-maps').Marker | null = null;
-if (!isExpoGo) {
-  try {
-    const maps = require('react-native-maps');
-    MapView = maps.default;
-    Marker = maps.Marker;
-  } catch (_) {}
-}
+const MapView: any = null;
+const Marker: any = null;
 
 const MIN_DONATION_THB = 50;
 const DEFAULT_REGION = {

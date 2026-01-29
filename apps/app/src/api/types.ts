@@ -124,6 +124,14 @@ export interface CoinbaseLoginRequest {
   wallet_address?: string;
 }
 
+export interface LoginWithWalletRequest {
+  wallet_address: string;
+  signature?: string;
+  message?: string;
+  referral_code?: string;
+}
+
+
 export interface SubmitSubmissionRequest {
   campaign_id: string;
   checkpoint_id: string;
