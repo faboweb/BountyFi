@@ -25,16 +25,18 @@ type RouteProp = RNRouteProp<AppStackParamList, 'FaceVerification'>;
 export function FaceVerificationScreen() {
   const route = useRoute<RouteProp>();
   const navigation = useNavigation<NavigationProp>();
-  const { campaignId, checkpointId } = route.params;
+  const campaignId = route.params?.campaignId;
+  const checkpointId = route.params?.checkpointId;
 
   const { data: campaign } = useQuery({
     queryKey: ['campaign', campaignId],
-    queryFn: () => api.campaigns.getById(campaignId),
+    queryFn: () => api.campaigns.getById(campaignId!),
+    enabled: !!campaignId,
   });
 
   const { data: verificationStatus } = useQuery({
     queryKey: ['faceVerification', campaignId],
-    queryFn: () => api.faceVerification.getStatus(campaignId),
+    queryFn: () => api.faceVerification.getStatus(campaignId!),
     enabled: !!campaignId,
   });
 
@@ -76,6 +78,14 @@ export function FaceVerificationScreen() {
     }
     enrollMutation.mutate(selfiePhoto);
   };
+
+  if (!campaignId || !checkpointId) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Missing campaign or checkpoint</Text>
+      </View>
+    );
+  }
 
   if (!campaign) {
     return (

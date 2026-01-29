@@ -22,10 +22,12 @@ npm run android
 
 ### Core Features (All Complete)
 
-1. **Authentication & Onboarding**
-   - Email-based login
+1. **Authentication & Onboarding (Coinbase CDP Embedded Wallets)**
+   - [Coinbase Embedded Wallets](https://docs.cdp.coinbase.com/embedded-wallets/welcome): sign in with **email OTP** or **Google OAuth**
    - Optional referral code input
+   - Connected wallet address shown after sign-in
    - Secure token storage
+   - **Setup**: Set `EXPO_PUBLIC_CDP_PROJECT_ID` (get from [CDP Portal](https://portal.cdp.coinbase.com)). For OAuth, add `bountyfi://oauth-callback` to [CDP Domains](https://portal.cdp.coinbase.com/products/embedded-wallets/domains). Without a project ID, the app uses a stub sign-in for development.
 
 2. **Campaigns**
    - List all active campaigns

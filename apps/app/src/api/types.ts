@@ -117,9 +117,11 @@ export interface LoginRequest {
   email: string;
 }
 
-/** Coinbase-only login (no email). Backend exchanges Coinbase OAuth token for session. */
+/** Coinbase CDP login. Backend validates access_token; optional wallet_address for mock/dev. */
 export interface CoinbaseLoginRequest {
   coinbase_access_token: string;
+  /** Set by app from CDP Embedded Wallet; backend may use when validating token. */
+  wallet_address?: string;
 }
 
 export interface SubmitSubmissionRequest {

@@ -34,11 +34,13 @@ export function SubmitProofScreen() {
   const route = useRoute<RouteProp>();
   const navigation = useNavigation<NavigationProp>();
   const queryClient = useQueryClient();
-  const { campaignId, checkpointId } = route.params;
+  const campaignId = route.params?.campaignId;
+  const checkpointId = route.params?.checkpointId;
 
   const { data: campaign } = useQuery({
     queryKey: ['campaign', campaignId],
-    queryFn: () => api.campaigns.getById(campaignId),
+    queryFn: () => api.campaigns.getById(campaignId!),
+    enabled: !!campaignId,
   });
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -53,7 +55,6 @@ export function SubmitProofScreen() {
   const validateBeforePhoto = () => {
     const errors: string[] = [];
     if (!beforePhoto) {
-      errors.push('Before picture is needed');
       return errors;
     }
     if (!beforePhoto.gps) {
@@ -73,7 +74,6 @@ export function SubmitProofScreen() {
   const validateAfterPhoto = () => {
     const errors: string[] = [];
     if (!afterPhoto || !beforePhoto) {
-      errors.push('Both before and after photos are required');
       return errors;
     }
     if (!afterPhoto.gps) {
@@ -145,36 +145,30 @@ export function SubmitProofScreen() {
 
   const handleNext = () => {
     if (step === 1) {
+      if (!beforePhoto) return;
       const errors = validateBeforePhoto();
       if (errors.length > 0) {
         setValidationErrors(errors);
-        const first = errors[0];
-        Alert.alert(first, errors.length > 1 ? errors.join('\n') : undefined);
+        Alert.alert(errors[0], errors.length > 1 ? errors.join('\n') : undefined);
         return;
       }
       setValidationErrors([]);
-
-      // Success popup after a valid before photo
-      Alert.alert('Thank you for cleaning up!', undefined, [
+      Alert.alert('Thank you for supporting our community', undefined, [
         { text: 'Start cleaning', onPress: () => setStep(2) },
       ]);
       return;
     }
 
     if (step === 2) {
+      if (!afterPhoto || !beforePhoto) return;
       const errors = validateAfterPhoto();
       if (errors.length > 0) {
         setValidationErrors(errors);
-        const first = errors[0];
-        Alert.alert(first, errors.length > 1 ? errors.join('\n') : undefined);
+        Alert.alert(errors[0], errors.length > 1 ? errors.join('\n') : undefined);
         return;
       }
       setValidationErrors([]);
-
-      // Success popup after a valid after photo
-      Alert.alert('Thank you for your submission', undefined, [
-        { text: 'Next', onPress: () => setStep(3) },
-      ]);
+      setStep(3);
       return;
     }
 
@@ -197,6 +191,14 @@ export function SubmitProofScreen() {
     setIsCapturing(false);
     handleNext();
   };
+
+  if (!campaignId || !checkpointId) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Missing campaign or checkpoint</Text>
+      </View>
+    );
+  }
 
   if (!campaign || !checkpoint) {
     return (

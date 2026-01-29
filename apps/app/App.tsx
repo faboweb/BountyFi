@@ -1,10 +1,12 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NavigationContainer } from '@react-navigation/native';
+import { CDPHooksProvider } from '@coinbase/cdp-hooks';
 import { AuthProvider, useAuth } from './src/auth/context';
 import { AuthNavigator } from './src/navigation/AuthNavigator';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { StatusBar } from 'expo-status-bar';
+import { CDP_CONFIG } from './src/config/cdp';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,12 +32,23 @@ function AppContent() {
   );
 }
 
+const hasCdp = !!CDP_CONFIG.projectId;
+
 export default function App() {
-  return (
+  const content = (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AppContent />
       </AuthProvider>
     </QueryClientProvider>
   );
+
+  if (hasCdp) {
+    return (
+      <CDPHooksProvider config={CDP_CONFIG}>
+        {content}
+      </CDPHooksProvider>
+    );
+  }
+  return content;
 }

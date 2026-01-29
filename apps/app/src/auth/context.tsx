@@ -2,13 +2,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authStorage } from './storage';
 import { api } from '../api/client';
-import { User } from '../api/types';
+import { AuthResponse, User } from '../api/types';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  loginWithCoinbase: (referralCode?: string) => Promise<void>;
+  loginWithCoinbase: (referralCode?: string, credentials?: { coinbase_access_token: string; wallet_address?: string }) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -39,13 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loginWithCoinbase = async (referralCode?: string) => {
+  const loginWithCoinbase = async (
+    referralCode?: string,
+    credentials?: { coinbase_access_token: string; wallet_address?: string }
+  ): Promise<AuthResponse> => {
     try {
-      // TODO: Replace with real Coinbase OAuth (expo-auth-session / WebBrowser).
-      // For now use a dev stub; backend would exchange Coinbase token for session.
-      const coinbaseToken = await getCoinbaseAccessToken();
+      const coinbaseToken = credentials?.coinbase_access_token ?? (await getCoinbaseAccessToken());
       const authResponse = await api.auth.loginWithCoinbase({
         coinbase_access_token: coinbaseToken,
+        wallet_address: credentials?.wallet_address,
       });
 
       await authStorage.saveToken(authResponse.token);
@@ -65,6 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const userData = await api.users.getMe();
       setUser(userData);
+      return authResponse;
     } catch (error) {
       console.error('Login failed:', error);
       throw error;

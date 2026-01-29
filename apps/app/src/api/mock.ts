@@ -58,13 +58,14 @@ class MockWebSocket {
 
 export const mockWebSocket = new MockWebSocket();
 
-// Auth API – Coinbase only
+// Auth API – Coinbase CDP; mock uses wallet_address from request when provided
 export const mockAuth = {
   async loginWithCoinbase(request: CoinbaseLoginRequest): Promise<AuthResponse> {
     await delay(API_CONFIG.MOCK_DELAY);
+    const wallet_address = request.wallet_address ?? MOCK_USER.wallet_address;
     return {
       token: 'mock_jwt_token_' + Date.now(),
-      wallet_address: MOCK_USER.wallet_address,
+      wallet_address,
       email: MOCK_USER.email,
       user_id: MOCK_USER.id,
     };

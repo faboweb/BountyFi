@@ -19,13 +19,22 @@ type RouteProp = RNRouteProp<AppStackParamList, 'Lottery'>;
 
 export function LotteryScreen() {
   const route = useRoute<RouteProp>();
-  const { campaignId } = route.params;
+  const campaignId = route.params?.campaignId;
   const { user } = useAuth();
 
   const { data: lottery, isLoading } = useQuery({
     queryKey: ['lottery', campaignId],
-    queryFn: () => api.lottery.getByCampaign(campaignId),
+    queryFn: () => api.lottery.getByCampaign(campaignId!),
+    enabled: !!campaignId,
   });
+
+  if (!campaignId) {
+    return (
+      <View style={styles.container}>
+        <Text>Campaign not found</Text>
+      </View>
+    );
+  }
 
   if (isLoading) {
     return (
