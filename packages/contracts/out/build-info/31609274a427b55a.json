@@ -1,1 +1,0 @@
-{"id":"31609274a427b55a","source_id_to_path":{"0":"lib/chainlink-brownie-contracts/contracts/src/v0.8/vrf/VRFConsumerBaseV2.sol","1":"lib/chainlink-brownie-contracts/contracts/src/v0.8/vrf/interfaces/VRFCoordinatorV2Interface.sol","2":"src/Lottery.sol"},"language":"Solidity"}
