@@ -45,38 +45,29 @@ serve(async (req) => {
         // combined with the nonce/timestamp to avoid replay?
         // Let's use the `submission_hash` as the message?
 
+        // 2. Fetch onchain_id for this campaign
+        const { data: campaign, error: campaignError } = await supabaseClient
+            .from('campaigns')
+            .select('onchain_id')
+            .eq('id', campaign_id)
+            .single();
+
+        if (campaignError) throw new Error(`Campaign fetch failed: ${campaignError.message}`);
+        const contractCampaignId = campaign.onchain_id;
+
         // Construct Hash
         const abiCoder = new ethers.AbiCoder();
         const submissionHash = ethers.keccak256(abiCoder.encode(
             ["uint256", "string[]", "int256", "int256"],
-            [campaign_id, photo_urls, gps_lat, gps_lng]
+            [contractCampaignId, photo_urls, gps_lat, gps_lng]
         ));
 
-        // Verify
-        // const signer = ethers.verifyMessage(ethers.getBytes(submissionHash), signature);
-        // if (signer.toLowerCase() !== public_address.toLowerCase()) {
-        //    throw new Error("Invalid Signature");
-        // }
-
-        // 2. Insert into DB (Pending state, no onchain_id yet)
+        // 3. Insert into DB (Pending state, no onchain_id yet)
         const { data: submission, error: insertError } = await supabaseClient
             .from('submissions')
             .insert({
                 campaign_id,
-                user_id: null, // Depending on if we map public_address to UUID. If not, store public_address in a new text col or assume we find the user.
-                // Wait, we need user_id for RLS/Foreign Keys?
-                // If the user is logged in via auth, we have `req.headers.Authorization`.
-                // But we are simulating anonymous/"Relayed".
-                // Relayer inserts.
-                // We should store `public_address` in a metadata field or `submitter_address` column?
-                // Actually, `tickets` table used `user_id`.
-                // We need to map `public_address` to a Supabase User ID if we want them to claim tickets later?
-                // OR just store the address.
-                // Let's assume we map it or store it. 
-                // For now, I'll add `submitter_address` to `submissions` schema or just overload `user_id` if it was TEXT (it is UUID).
-                // I'll skip `user_id` for now if nullable, or assume we resolve it.
-                // I'll use `description` or `verification_trace` to store metadata if needed. 
-                // Or just rely on `signature` to prove ownership later.
+                user_id: null,
                 photo_urls,
                 gps_lat,
                 gps_lng,
@@ -89,18 +80,19 @@ serve(async (req) => {
 
         if (insertError) throw insertError;
 
-        // 3. Submit to Chain
+        // 4. Submit to Chain
         const provider = new ethers.JsonRpcProvider(Deno.env.get('RPC_URL'));
         const wallet = new ethers.Wallet(Deno.env.get('PRIVATE_KEY') ?? '', provider);
         const contract = new ethers.Contract(
             Deno.env.get('BOUNTYFI_ADDRESS') ?? '',
             [
-                "function submit(uint256, bytes32) external"
+                "function submit(uint256, bytes32) external",
+                "event SubmissionCreated(uint256 indexed submissionId, uint256 indexed campaignId, address indexed submitter, bytes32 submissionHash)"
             ],
             wallet
         );
 
-        const tx = await contract.submit(campaign_id, submissionHash);
+        const tx = await contract.submit(contractCampaignId, submissionHash);
         const receipt = await tx.wait();
 
         // Determine ID from events
@@ -124,9 +116,13 @@ serve(async (req) => {
             JSON.stringify({ success: true, submission_id: submission.id, onchain_id: onchainId }),
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         )
-    } catch (error) {
+    } catch (error: any) {
+        console.error(`[RelaySubmission] Error:`, error);
         return new Response(
-            JSON.stringify({ error: error.message }),
+            JSON.stringify({
+                error: error.message,
+                details: error.details || error.hint || 'No additional details'
+            }),
             { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
         )
     }

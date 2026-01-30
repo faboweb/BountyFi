@@ -2,6 +2,7 @@
 import { API_CONFIG } from '../config/api';
 import axios, { AxiosInstance } from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { supabase } from '../utils/supabase';
 import {
   AuthResponse,
   Campaign,
@@ -87,43 +88,36 @@ export const campaignsApi = {
 // Submissions API
 export const submissionsApi = {
   async submit(request: SubmitSubmissionRequest): Promise<Submission> {
-    // Create FormData for multipart upload
-    const formData = new FormData();
-    formData.append('campaign_id', request.campaign_id);
-    formData.append('checkpoint_id', request.checkpoint_id);
-    if (request.gesture_photo) {
-      formData.append('gesture_photo', {
-        uri: request.gesture_photo,
-        type: 'image/jpeg',
-        name: 'gesture.jpg',
-      } as any);
-    }
-    formData.append('before_photo', {
-      uri: request.before_photo,
-      type: 'image/jpeg',
-      name: 'before.jpg',
-    } as any);
-    formData.append('after_photo', {
-      uri: request.after_photo,
-      type: 'image/jpeg',
-      name: 'after.jpg',
-    } as any);
-    formData.append('gps_lat', request.gps_lat.toString());
-    formData.append('gps_lng', request.gps_lng.toString());
-    formData.append('before_timestamp', request.before_timestamp);
-    formData.append('after_timestamp', request.after_timestamp);
-
-    const response = await apiClient.post<Submission>('/submissions', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
+    // Relayer Submission via Supabase Edge Function
+    const { data: result, error } = await supabase.functions.invoke('relay_submission', {
+      body: {
+        campaign_id: request.campaign_id,
+        photo_urls: [request.before_photo, request.after_photo],
+        gps_lat: request.gps_lat,
+        gps_lng: request.gps_lng,
+        signature: request.signature,
+        public_address: request.public_address,
       },
     });
-    return response.data;
+
+    if (error) throw error;
+
+    return {
+      id: result.submission_id,
+      ...request,
+    } as unknown as Submission;
   },
 
   async getPending(): Promise<Submission[]> {
-    const response = await apiClient.get<Submission[]>('/submissions/pending');
-    return response.data;
+    const { data: pending, error } = await supabase.functions.invoke('get_tasks', {
+      body: { validator_id: (await supabase.auth.getUser()).data.user?.id }
+    });
+    if (error) {
+      console.warn('get_tasks function failed, falling back to REST', error);
+      // Fallback or empty
+      return [];
+    }
+    return pending || [];
   },
 
   async getMy(): Promise<Submission[]> {
@@ -140,7 +134,16 @@ export const submissionsApi = {
 // Validations API
 export const validationsApi = {
   async submit(request: ValidationRequest): Promise<void> {
-    await apiClient.post('/validations', request);
+    const session = await supabase.auth.getSession();
+    const { error } = await supabase.functions.invoke('process_vote', {
+      body: {
+        submission_id: request.submission_id,
+        validator_id: session.data.session?.user.id,
+        decision: request.vote === 'approve' ? 'APPROVED' : 'REJECTED',
+        reason: 'Manually validated via app'
+      }
+    });
+    if (error) throw error;
   },
 };
 
@@ -174,6 +177,14 @@ export const lotteryApi = {
   async getByCampaign(campaignId: string): Promise<Lottery> {
     const response = await apiClient.get<Lottery>(`/lottery/${campaignId}`);
     return response.data;
+  },
+
+  async open(signature: string, message: string): Promise<{ success: boolean; message: string }> {
+    const { data, error } = await supabase.functions.invoke('relay_lootbox', {
+      body: { signature, message }
+    });
+    if (error) throw error;
+    return data;
   },
 };
 

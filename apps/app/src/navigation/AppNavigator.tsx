@@ -11,7 +11,7 @@ import { ValidateQueueScreen } from '../features/validation/ValidateQueueScreen'
 import { MySubmissionsScreen } from '../features/submissions/MySubmissionsScreen';
 import { ProfileScreen } from '../features/profile/ProfileScreen';
 import { LeaderboardScreen } from '../features/leaderboard/LeaderboardScreen';
-import { LotteryScreen } from '../features/lottery/LotteryScreen';
+import { LootboxScreen } from '../features/lottery/LootboxScreen';
 import { DonationsScreen } from '../features/donations/DonationsScreen';
 import { DonateHomeScreen } from '../features/donations/DonateHomeScreen';
 import { CreateQuestScreen } from '../features/donations/CreateQuestScreen';
@@ -40,7 +40,7 @@ export type AppStackParamList = {
   MySubmissions: undefined;
   Profile: undefined;
   Leaderboard: undefined;
-  Lottery: { campaignId: string };
+  Lootbox: undefined;
   DailyTaskSelection: undefined;
   DailyTaskCamera: undefined;
   DonatorImpactDashboard: undefined;
@@ -92,7 +92,7 @@ function WalletStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
-      <Stack.Screen name="Lottery" component={LotteryScreen} />
+      <Stack.Screen name="Lootbox" component={LootboxScreen} />
       <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
       <Stack.Screen name="RedeemChallenges" component={RedeemChallengesScreen} />
       <Stack.Screen name="PlayTicketResult" component={PlayTicketResultScreen} />

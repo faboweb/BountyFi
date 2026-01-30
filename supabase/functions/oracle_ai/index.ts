@@ -47,30 +47,68 @@ serve(async (req) => {
     )
 
     try {
-        const { submission_id, photo_url, campaign_rules } = await req.json()
+        const { submission_id, photo_url, campaign_rules, mock, mock_confidence } = await req.json()
 
-        // 1. Run AI Inference
-        console.log(`Processing submission ${submission_id} with AI...`)
-        const output = await replicateRequest(VISION_VERSION, {
-            image: photo_url,
-            prompt: `Task: Verify if this photo matches the rule: "${campaign_rules}". Rate the confidence from 0 to 100 that it matches. Output ONLY the number.`
-        });
+        let confidence = 0;
+        let rawText = "";
 
-        const rawText = Array.isArray(output) ? output.join("") : String(output);
-        const confidence = parseInt(rawText.replace(/\D/g, '')) || 0;
+        if (mock) {
+            console.log("Mock Mode: Skipping Replicate API");
+            confidence = mock_confidence !== undefined ? mock_confidence : 95; // Custom or High Confidence
+            rawText = String(confidence);
+        } else {
+            // 1. Run AI Inference
+            console.log(`Processing submission ${submission_id} with AI...`)
+            const output = await replicateRequest(VISION_VERSION, {
+                image: photo_url,
+                prompt: `Task: Verify if this photo matches the rule: "${campaign_rules}". Rate the confidence from 0 to 100 that it matches. Output ONLY the number.`
+            });
+
+            rawText = Array.isArray(output) ? output.join("") : String(output);
+            confidence = parseInt(rawText.replace(/\D/g, '')) || 0;
+        }
+
         console.log(`AI Confidence: ${confidence}`)
 
-        // 2. Push to Chain
-        if (!RPC_URL || !ORACLE_PRIVATE_KEY || !BOUNTYFI_ADDRESS) {
-            throw new Error("Missing Chain Config")
+        // 2. Check Secrets
+        const missingVars = [];
+        if (!RPC_URL) missingVars.push('RPC_URL');
+        if (!ORACLE_PRIVATE_KEY) missingVars.push('ORACLE_PRIVATE_KEY');
+        if (!BOUNTYFI_ADDRESS) missingVars.push('BOUNTYFI_ADDRESS');
+
+        if (missingVars.length > 0) {
+            return new Response(JSON.stringify({
+                success: false,
+                error: `Missing Secrets: ${missingVars.join(', ')}`
+            }), {
+                headers: { "Content-Type": "application/json" },
+            });
         }
+
+        // 3. Push to Chain
+        if (!RPC_URL || !ORACLE_PRIVATE_KEY || !BOUNTYFI_ADDRESS) {
+            // Redundant check but satisfies TS if needed
+            throw new Error("Missing Chain Config");
+        }
+
+        // Fetch onchain_id
+        const { data: subData, error: subError } = await supabaseClient
+            .from('submissions')
+            .select('onchain_id')
+            .eq('id', submission_id)
+            .single();
+
+        if (subError || !subData || !subData.onchain_id) {
+            throw new Error(`Could not find onchain_id for submission ${submission_id}`);
+        }
+        const onChainId = subData.onchain_id;
 
         const provider = new ethers.JsonRpcProvider(RPC_URL)
         const wallet = new ethers.Wallet(ORACLE_PRIVATE_KEY, provider)
         const contract = new ethers.Contract(BOUNTYFI_ADDRESS, BOUNTYFI_ABI, wallet)
 
-        console.log(`Submitting score to contract for sub ${submission_id}...`)
-        const tx = await contract.submitAIScore(submission_id, confidence)
+        console.log(`Submitting score to contract for sub ${submission_id} (onchain: ${onChainId})...`)
+        const tx = await contract.submitAIScore(onChainId, confidence)
         await tx.wait()
         console.log(`Tx settled: ${tx.hash}`)
 
@@ -89,8 +127,8 @@ serve(async (req) => {
 
     } catch (error) {
         console.error(error)
-        return new Response(JSON.stringify({ error: error.message }), {
-            status: 500, headers: { "Content-Type": "application/json" },
+        return new Response(JSON.stringify({ success: false, error: error.message, stack: error.stack }), {
+            status: 200, headers: { "Content-Type": "application/json" },
         })
     }
 })

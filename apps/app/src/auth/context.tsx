@@ -14,14 +14,20 @@ interface AuthContextType {
   loginWithLocalKey: (referralCode?: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  signMessage: (message: string) => Promise<string>;
 }
 
+
+import { useRealtime } from '../hooks/useRealtime';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Initialize Realtime subscriptions
+  useRealtime();
 
   useEffect(() => {
     checkAuth();
@@ -118,12 +124,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-
-
-
   const logout = async () => {
     await authStorage.clear();
     setUser(null);
+  };
+
+  const signMessage = async (message: string): Promise<string> => {
+    try {
+      const privateKey = await authStorage.getPrivateKey();
+      if (!privateKey) throw new Error('No private key found');
+      const wallet = new Wallet(privateKey);
+      return await wallet.signMessage(message);
+    } catch (error) {
+      console.error('Sign message failed:', error);
+      throw error;
+    }
   };
 
   const refreshUser = async () => {
@@ -144,7 +159,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginWithLocalKey,
         logout,
         refreshUser,
-
+        signMessage,
       }}
     >
       {children}

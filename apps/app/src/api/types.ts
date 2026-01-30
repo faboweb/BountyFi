@@ -159,6 +159,8 @@ export interface SubmitSubmissionRequest {
   gps_lng: number;
   before_timestamp: string;
   after_timestamp: string;
+  signature?: string;
+  public_address?: string;
 }
 
 export interface ValidationRequest {
