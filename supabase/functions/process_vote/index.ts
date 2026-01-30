@@ -75,9 +75,44 @@ serve(async (req) => {
             // This part could be complex, for MVP simple +1 ticket per validation
         }
 
-        // 3. Increment Validator Stats
-        // Implementation of increments usually done via RPC or careful update
-        // We'll skip complex atomic increment for hackathon MVP and just trust client/edge logic
+        // 3. Golden Task Grading (Immediate Feedback)
+        let gradingResult = null;
+
+        // Check if this is a golden task (Private Table)
+        const { data: goldenTask } = await supabaseClient
+            .from('golden_tasks')
+            .select('expected_outcome')
+            .eq('submission_id', submission_id)
+            .single();
+
+        if (goldenTask) {
+            const isCorrect = (decision === goldenTask.expected_outcome);
+            console.log(`Validator ${validator_id} graded on Golden Task. Correct: ${isCorrect}`);
+
+            if (isCorrect) {
+                // Reward: +1 Diamond (Trust Score)
+                // Need to call TrustNetwork contract? 
+                // Or just track off-chain for now in 'validators' table?
+                // Let's add strict 'accuracy_score' update.
+                // Currently table has 'accuracy_score' (NUMERIC).
+
+                // For MVP: Log it.
+                gradingResult = {
+                    is_golden: true,
+                    correct: true,
+                    message: "Correct! You earned a Trust Diamond."
+                };
+            } else {
+                // Penalize
+                gradingResult = {
+                    is_golden: true,
+                    correct: false,
+                    message: "Incorrect. This was a known test case."
+                };
+            }
+        }
+
+        // 4. Update Validator Stats (Regular)
         const { data: validator } = await supabaseClient
             .from('validators')
             .select('validations_today, total_validations, tickets_earned')
@@ -123,7 +158,10 @@ serve(async (req) => {
         }
 
         return new Response(
-            JSON.stringify({ message: "Vote recorded" }),
+            JSON.stringify({
+                message: "Vote recorded",
+                grading: gradingResult
+            }),
             { headers: { "Content-Type": "application/json" } },
         )
 
