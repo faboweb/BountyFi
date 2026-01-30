@@ -24,11 +24,8 @@ contract BountyFi is AccessControl {
 
     struct Submission {
         uint256 campaignId;
-        address submitter;
-        string photoUrl;
-        bytes32 photoHash;
-        int256 lat;
-        int256 lng;
+        address submitter; // The Relayer (Agent)
+        bytes32 submissionHash; // Opaque commitment
         SubmissionStatus status;
         uint256 aiConfidence;
         uint256 approveVotes;
@@ -48,7 +45,7 @@ contract BountyFi is AccessControl {
     mapping(uint256 => mapping(address => bool)) public hasVoted;
 
     event CampaignCreated(uint256 indexed campaignId, CampaignType campaignType, uint256 rewardAmount);
-    event SubmissionCreated(uint256 indexed submissionId, uint256 indexed campaignId, address indexed submitter, bytes32 photoHash);
+    event SubmissionCreated(uint256 indexed submissionId, uint256 indexed campaignId, address indexed submitter, bytes32 submissionHash);
     event AIScoreSubmitted(uint256 indexed submissionId, uint256 confidence);
     event Voted(uint256 indexed submissionId, address indexed juror, bool approve);
     event Finalized(uint256 indexed submissionId, SubmissionStatus status);
@@ -80,10 +77,7 @@ contract BountyFi is AccessControl {
 
     function submit(
         uint256 _campaignId,
-        string calldata _photoUrl,
-        bytes32 _photoHash,
-        int256 _lat,
-        int256 _lng
+        bytes32 _submissionHash
     ) external {
         Campaign storage campaign = campaigns[_campaignId];
         require(campaign.active, "Campaign not active");
@@ -91,10 +85,7 @@ contract BountyFi is AccessControl {
         submissions[nextSubmissionId] = Submission({
             campaignId: _campaignId,
             submitter: msg.sender,
-            photoUrl: _photoUrl,
-            photoHash: _photoHash,
-            lat: _lat,
-            lng: _lng,
+            submissionHash: _submissionHash,
             status: SubmissionStatus.PENDING,
             aiConfidence: 0,
             approveVotes: 0,
@@ -106,7 +97,7 @@ contract BountyFi is AccessControl {
         pendingIndex[nextSubmissionId] = pendingSubmissionIds.length;
         pendingSubmissionIds.push(nextSubmissionId);
 
-        emit SubmissionCreated(nextSubmissionId, _campaignId, msg.sender, _photoHash);
+        emit SubmissionCreated(nextSubmissionId, _campaignId, msg.sender, _submissionHash);
         nextSubmissionId++;
     }
 
@@ -119,37 +110,26 @@ contract BountyFi is AccessControl {
         emit AIScoreSubmitted(_submissionId, _confidence);
 
         if (_confidence >= camp.aiThreshold) {
-            sub.status = SubmissionStatus.APPROVED; // Should be AI_VERIFIED, but reusing enum for simplicity or map
-             // Actually, enable direct approval if high confidence? 
-             // Logic says: >= Threshold -> Approve. < Threshold/2 -> Reject. Else -> Jury.
-             // If Approved/Rejected, remove from pending.
+            sub.status = SubmissionStatus.APPROVED;
             _removeFromPending(_submissionId);
-            token.mint(sub.submitter, camp.rewardAmount); // Original line, kept for consistency with token minting
-            trustNetwork.handleResolution(sub.submitter, true);
-            tickets.mint(sub.submitter, sub.campaignId, camp.rewardAmount, sub.photoHash);
+            // Minting moved to finalize()
             emit Finalized(_submissionId, SubmissionStatus.APPROVED);
         } else if (_confidence < camp.aiThreshold / 2) {
             sub.status = SubmissionStatus.REJECTED;
             _removeFromPending(_submissionId);
-            trustNetwork.handleResolution(sub.submitter, false);
+            // TrustNetwork update moved/kept? The Relayer is the submitter, so punishing Relayer is wrong.
+            // Punishing User happens off-chain (ban) or via finalize(REJECT).
+            // For now, emit REJECTED.
             emit Finalized(_submissionId, SubmissionStatus.REJECTED);
         } else {
-            // JURY_VOTING - Keep in pending!
-            // Status update only
-             // Wait, if I use SubmissionStatus.PENDING for Jury too? 
-             // Or explicitly set to JURY_VOTING (if enum had it).
-             // Current enum: PENDING, APPROVED, REJECTED.
-             // Implementation Plan says: "JURY_VOTING - Keep in pending".
-             // Code Step 169 doesn't show JURY_VOTING in enum.
-             // I'll stick to PENDING.
-            sub.status = SubmissionStatus.JURY_VOTING; // Explicitly set to JURY_VOTING as per enum
+            sub.status = SubmissionStatus.JURY_VOTING;
         }
     }
 
     function vote(uint256 _submissionId, bool _approve) external {
         Submission storage sub = submissions[_submissionId];
-        require(sub.status == SubmissionStatus.JURY_VOTING, "Not in jury phase"); // Changed from PENDING
-        require(sub.submitter != msg.sender, "Cannot vote on own");
+        require(sub.status == SubmissionStatus.JURY_VOTING, "Not in jury phase");
+        // require(sub.submitter != msg.sender, "Cannot vote on own"); // Relayer is submitter, Validator checks off-chain
         require(!hasVoted[_submissionId][msg.sender], "Already voted");
 
         hasVoted[_submissionId][msg.sender] = true;
@@ -166,17 +146,27 @@ contract BountyFi is AccessControl {
         if (sub.approveVotes >= 2) {
             sub.status = SubmissionStatus.APPROVED;
             _removeFromPending(_submissionId);
-            token.mint(sub.submitter, campaigns[sub.campaignId].rewardAmount); // Original line, kept for consistency
-            trustNetwork.handleResolution(sub.submitter, true);
-            uint256 reward = campaigns[sub.campaignId].rewardAmount;
-            tickets.mint(sub.submitter, sub.campaignId, reward, sub.photoHash);
+            // Minting moved to finalize()
             emit Finalized(_submissionId, SubmissionStatus.APPROVED);
         } else if (sub.rejectVotes >= 2) {
             sub.status = SubmissionStatus.REJECTED;
             _removeFromPending(_submissionId);
-            trustNetwork.handleResolution(sub.submitter, false);
             emit Finalized(_submissionId, SubmissionStatus.REJECTED);
         }
+    }
+
+    function finalizeSubmission(uint256 _submissionId, address _recipient) external onlyRole(ORACLE_ROLE) {
+        Submission storage sub = submissions[_submissionId];
+        require(sub.status == SubmissionStatus.APPROVED, "Not approved");
+        // Require not already minted?
+        // We can check if tickets/tokens were already given? 
+        // Or simply add a `minted` flag to struct.
+        // For now, assuming Oracle calls this ONCE.
+        
+        Campaign storage camp = campaigns[sub.campaignId];
+        token.mint(_recipient, camp.rewardAmount);
+        trustNetwork.handleResolution(_recipient, true);
+        tickets.mint(_recipient, sub.campaignId, camp.rewardAmount, sub.submissionHash);
     }
 
     function getValidationTask(address _validator) external view returns (uint256) {

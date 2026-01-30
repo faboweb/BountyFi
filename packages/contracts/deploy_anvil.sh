@@ -8,47 +8,40 @@ if [ -f "../../.env" ]; then
   set +a
 fi
 
-RPC_URL="https://sepolia.base.org"
+RPC_URL="http://127.0.0.1:8545"
+PRIVATE_KEY=${PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80} # Default Anvil PK
 
-echo "🚀 Deploying fresh set of contracts to Base Sepolia..."
-
-# Function to extract address from forge create output
-extract_address() {
-    echo "$1" | grep "Deployed to:" | awk '{print $3}'
-}
+echo "🚀 Deploying to Anvil at $RPC_URL..."
 
 # 1. BountyToken
 echo "Deploying BountyToken..."
-TOKEN_OUT=$(forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast src/BountyToken.sol:BountyToken)
-TOKEN_ADDR=$(extract_address "$TOKEN_OUT")
+TOKEN_ADDR=$(forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY src/BountyToken.sol:BountyToken --json | jq -r '.deployedTo')
 echo "BountyToken: $TOKEN_ADDR"
 
 # 2. Tickets
 echo "Deploying Tickets..."
-TICKETS_OUT=$(forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast src/Tickets.sol:Tickets)
-TICKETS_ADDR=$(extract_address "$TICKETS_OUT")
+TICKETS_ADDR=$(forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY src/Tickets.sol:Tickets --json | jq -r '.deployedTo')
 echo "Tickets: $TICKETS_ADDR"
 
 # 3. TrustNetwork
 echo "Deploying TrustNetwork..."
-TRUST_OUT=$(forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast src/TrustNetwork.sol:TrustNetwork --constructor-args $TICKETS_ADDR)
-TRUST_ADDR=$(extract_address "$TRUST_OUT")
+TRUST_ADDR=$(forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY src/TrustNetwork.sol:TrustNetwork --constructor-args $TICKETS_ADDR --json | jq -r '.deployedTo')
 echo "TrustNetwork: $TRUST_ADDR"
 
 # 4. BountyFi
 echo "Deploying BountyFi..."
-BOUNTYFI_OUT=$(forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY --broadcast src/BountyFi.sol:BountyFi --constructor-args $TOKEN_ADDR $TRUST_ADDR $TICKETS_ADDR)
-BOUNTYFI_ADDR=$(extract_address "$BOUNTYFI_OUT")
+BOUNTYFI_ADDR=$(forge create --rpc-url $RPC_URL --private-key $PRIVATE_KEY src/BountyFi.sol:BountyFi --constructor-args $TOKEN_ADDR $TRUST_ADDR $TICKETS_ADDR --json | jq -r '.deployedTo')
 echo "BountyFi: $BOUNTYFI_ADDR"
 
-# 5. Roles Setup
+# 5. Setup Roles (Crucial for the architecture)
 echo "Setting up roles..."
 cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $TOKEN_ADDR "grantRole(bytes32,address)" $(cast keccak "MINTER_ROLE") $BOUNTYFI_ADDR
 cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $TICKETS_ADDR "grantRole(bytes32,address)" $(cast keccak "MINTER_ROLE") $BOUNTYFI_ADDR
 cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $TICKETS_ADDR "grantRole(bytes32,address)" $(cast keccak "MINTER_ROLE") $TRUST_ADDR
 cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $TRUST_ADDR "grantRole(bytes32,address)" $(cast keccak "RESOLVER_ROLE") $BOUNTYFI_ADDR
 
-echo "✅ Fresh Deployment Complete!"
+echo "✅ All contracts deployed and roles configured!"
+echo ""
 echo "BOUNTYFI_ADDRESS=$BOUNTYFI_ADDR"
 echo "BOUNTY_TOKEN_ADDRESS=$TOKEN_ADDR"
 echo "TICKETS_ADDRESS=$TICKETS_ADDR"

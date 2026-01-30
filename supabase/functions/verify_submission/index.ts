@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { ethers } from "https://esm.sh/ethers@6.11.1"
 
 // Haversine distance calculation
 function getDistanceFromLatLonInMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -205,6 +206,41 @@ serve(async (req) => {
             .eq('id', submission.id)
 
         if (updateError) throw updateError
+
+        // Submit Score to Chain (if onchain_id exists)
+        if (submission.onchain_id) {
+            try {
+                const provider = new ethers.JsonRpcProvider(Deno.env.get('RPC_URL'));
+                const wallet = new ethers.Wallet(Deno.env.get('ORACLE_PRIVATE_KEY') ?? Deno.env.get('PRIVATE_KEY') ?? '', provider);
+                const contract = new ethers.Contract(
+                    Deno.env.get('BOUNTYFI_ADDRESS') ?? '',
+                    ["function submitAIScore(uint256, uint256) external"],
+                    wallet
+                );
+
+                // aiConfidence is 0-100. PENDING.
+                const tx = await contract.submitAIScore(submission.onchain_id, aiConfidence);
+                await tx.wait();
+
+                trace.steps.push({
+                    check: "onchain_submit",
+                    status: "PASS",
+                    details: `Submitted score ${aiConfidence} for ID ${submission.onchain_id}`
+                });
+            } catch (chainError) {
+                console.error("Chain submit error:", chainError);
+                trace.steps.push({
+                    check: "onchain_submit",
+                    status: "FAIL",
+                    details: chainError.message
+                });
+                // Don't fail the function, just log. 
+            }
+        }
+
+        // Update trace in DB again if we added steps? 
+        // Optional, but good for debugging. 
+        await supabaseClient.from('submissions').update({ verification_trace: trace }).eq('id', submission.id);
 
         return new Response(
             JSON.stringify(trace),

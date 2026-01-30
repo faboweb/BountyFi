@@ -63,7 +63,7 @@ contract TrustNetworkTest is Test {
 
         vm.startPrank(userB);
         trustNetwork.setReferrer(userC); // B referred by C
-        bountyFi.submit(campaignId, "http://photo.url", bytes32(0), 0, 0);
+        bountyFi.submit(campaignId, bytes32(0));
         vm.stopPrank();
         
         uint256 submissionId = 0;
@@ -101,7 +101,7 @@ contract TrustNetworkTest is Test {
              vm.warp(block.timestamp + 1 days); // Advance day for daily limits if any (Tickets has limit)
              
              vm.prank(userB);
-             bountyFi.submit(campaignId, "url", bytes32(uint256(i)), 0, 0);
+             bountyFi.submit(campaignId, bytes32(uint256(i)));
              
              vm.prank(oracle);
              bountyFi.submitAIScore(i, 90);
@@ -130,7 +130,7 @@ contract TrustNetworkTest is Test {
 
         // B Submits and Fails
         vm.prank(userB);
-        bountyFi.submit(0, "bad_url", bytes32(0), 0, 0);
+        bountyFi.submit(0, bytes32(0));
 
         vm.prank(oracle);
         bountyFi.submitAIScore(0, 10); // Score 10 < Threshold 40 (half of 80) -> REJECT
@@ -150,7 +150,7 @@ contract TrustNetworkTest is Test {
 
         // User B submits
         vm.prank(userB);
-        bountyFi.submit(campaignId, "photo_b", bytes32(uint256(2)), 0, 0);
+        bountyFi.submit(campaignId, bytes32(uint256(2)));
         uint256 subId = 0; // First submission
 
         // Move to Jury Phase (Confidence 50 < 80)
