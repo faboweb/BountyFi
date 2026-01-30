@@ -1,31 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-contract Tickets {
+import "@openzeppelin/contracts/access/AccessControl.sol";
+
+contract Tickets is AccessControl {
+    bytes32 public constant MINTER_ROLE = keccak256("MINTER_ROLE");
+    bytes32 public constant BURNER_ROLE = keccak256("BURNER_ROLE");
+
     mapping(uint256 => mapping(address => uint256)) public balances;
     mapping(uint256 => mapping(address => uint256)) public lastClaimDay; // day = block.timestamp / 86400
 
-    address public verifier; // Edge Function wallet
-    address public prizeDistributor;
-
     event TicketsMinted(address indexed user, uint256 indexed campaignId, uint256 amount, bytes32 submissionHash);
+    event TicketsBurned(address indexed user, uint256 indexed campaignId, uint256 amount);
     event TicketsSpent(address indexed user, uint256 indexed campaignId, uint256 amount);
 
     constructor() {
-        verifier = msg.sender;
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(MINTER_ROLE, msg.sender);
     }
 
-    modifier onlyVerifier() {
-        require(msg.sender == verifier, "Only verifier can mint");
-        _;
-    }
-
-    modifier onlyPrizeDistributor() {
-        require(msg.sender == prizeDistributor, "Only distributor can spend");
-        _;
-    }
-
-    function mint(address user, uint256 campaignId, uint256 amount, bytes32 submissionHash) external onlyVerifier {
+    function mint(address user, uint256 campaignId, uint256 amount, bytes32 submissionHash) external onlyRole(MINTER_ROLE) {
         uint256 currentDay = block.timestamp / 1 days;
         require(lastClaimDay[campaignId][user] < currentDay, "User already claimed ticket today for this campaign");
         
@@ -35,13 +29,19 @@ contract Tickets {
         emit TicketsMinted(user, campaignId, amount, submissionHash);
     }
 
-    function mintReward(address user, uint256 campaignId, uint256 amount, bytes32 rewardHash) external onlyVerifier {
+    function mintReward(address user, uint256 campaignId, uint256 amount, bytes32 rewardHash) external onlyRole(MINTER_ROLE) {
         // Bypasses daily limit check
         balances[campaignId][user] += amount;
         emit TicketsMinted(user, campaignId, amount, rewardHash);
     }
 
-    function spend(address user, uint256 campaignId, uint256 amount) external onlyPrizeDistributor {
+    function burn(address user, uint256 campaignId, uint256 amount) external onlyRole(BURNER_ROLE) {
+        require(balances[campaignId][user] >= amount, "Insufficient tickets to burn");
+        balances[campaignId][user] -= amount;
+        emit TicketsBurned(user, campaignId, amount);
+    }
+
+    function spend(address user, uint256 campaignId, uint256 amount) external onlyRole(BURNER_ROLE) {
         require(balances[campaignId][user] >= amount, "Insufficient tickets");
         balances[campaignId][user] -= amount;
         emit TicketsSpent(user, campaignId, amount);
@@ -49,15 +49,5 @@ contract Tickets {
 
     function balanceOf(address user, uint256 campaignId) external view returns (uint256) {
         return balances[campaignId][user];
-    }
-
-    function setVerifier(address _verifier) external {
-        require(msg.sender == verifier, "Only verifier can change verifier");
-        verifier = _verifier;
-    }
-
-    function setPrizeDistributor(address _distributor) external {
-        require(msg.sender == verifier, "Only verifier can change distributor");
-        prizeDistributor = _distributor;
     }
 }

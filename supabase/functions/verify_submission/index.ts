@@ -34,10 +34,10 @@ serve(async (req) => {
             throw new Error("Invalid submission data")
         }
 
-        // Fetch campaign checkpoints
+        // Fetch campaign checkpoints and rules
         const { data: campaign, error: campaignError } = await supabaseClient
             .from('campaigns')
-            .select('checkpoints')
+            .select('checkpoints, campaign_type, description, ai_threshold')
             .eq('id', submission.campaign_id)
             .single()
 
@@ -101,30 +101,41 @@ serve(async (req) => {
         // Check 2: Photo Count
         const photoCount = submission.photo_urls ? submission.photo_urls.length : 0
         const photoPass = photoCount >= 1 // Minimum 1 for MVP
+        const minPhotos = (campaign.campaign_type === 'TWO_PHOTO_CHANGE') ? 2 : 1;
 
         trace.steps.push({
             check: "photo_count",
-            status: photoPass ? "PASS" : "FAIL",
-            details: `${photoCount} photos uploaded (min 1)`
+            status: (photoCount >= minPhotos) ? "PASS" : "FAIL",
+            details: `${photoCount} photos uploaded (min ${minPhotos})`
         })
 
-        if (!photoPass) allChecksPass = false
+        if (photoCount < minPhotos) allChecksPass = false
 
-        // Decision
+        // Determine AI Confidence
+        let aiConfidence = 0; // Default 0 (Reject)
+
+        // Decision Flow
         if (criticalFail) {
             trace.decision = "AUTO_REJECT"
+            aiConfidence = 0;
         } else if (allChecksPass) {
             // Milestone 3: AI Vision Pre-filtering
             try {
-                const aiResp = await fetch('https://cguqjaoeleifeaxktmwv.supabase.co/functions/v1/verify_semantic', {
+                const aiResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/verify_semantic`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
+                    },
                     body: JSON.stringify({
                         submission_id: submission.id,
-                        campaign_type: campaign.type || 'action',
-                        campaign_rules: campaign.rules
+                        campaign_type: campaign.campaign_type || 'action',
+                        campaign_rules: campaign.description || '' // Fallback to description as rules
                     })
                 });
+
+                if (!aiResp.ok) throw new Error(`AI Service Error: ${aiResp.statusText}`);
+
                 const aiResult = await aiResp.json();
 
                 if (aiResult.processed && aiResult.processed.length > 0) {
@@ -135,10 +146,15 @@ serve(async (req) => {
                     // @ts-ignore
                     trace.ai_vision = aiData;
 
+                    // Map Decision to Confidence (0-100)
+                    if (aiDecision === 'AUTO_APPROVE') aiConfidence = 95;
+                    else if (aiDecision === 'AUTO_REJECT') aiConfidence = 5;
+                    else aiConfidence = 50; // Needs Review
+
                     trace.steps.push({
                         check: "ai_vision",
                         status: aiDecision === 'AUTO_REJECT' ? "FAIL" : "PASS",
-                        details: `AI Reason: ${aiDecision}`
+                        details: `AI Reason: ${aiDecision} (Confidence: ${aiConfidence})`
                     });
                 }
             } catch (e) {
@@ -149,25 +165,42 @@ serve(async (req) => {
                     details: "AI service unreachable, falling back to human review"
                 });
                 trace.decision = "NEEDS_HUMAN_REVIEW";
+                aiConfidence = 50;
             }
 
             if (trace.decision === "PENDING") {
                 trace.decision = "AUTO_APPROVE"
+                aiConfidence = 95;
             }
         } else {
-            trace.decision = "NEEDS_HUMAN_REVIEW"
+            trace.decision = "NEEDS_HUMAN_REVIEW" // Or Reject if photo count fail?
+            // If verify checks fail (but not critical like GPS), maybe human review?
+            // Usually photo count fail is critical.
+            if (!photoPass) {
+                trace.decision = "AUTO_REJECT";
+                aiConfidence = 0;
+            } else {
+                aiConfidence = 50;
+            }
         }
 
         // Update Submission
-        const status = trace.decision === 'AUTO_APPROVE' ? 'APPROVED' :
-            trace.decision === 'AUTO_REJECT' ? 'REJECTED' :
-                'NEEDS_HUMAN_REVIEW';
+        // Align DB Status with what Chain WILL decide based on aiConfidence vs Threshold
+        // Chain: >= Threshold (80) -> Approved. < Threshold/2 (40) -> Rejected. Else -> Jury.
+        const threshold = campaign.ai_threshold || 80;
+
+        // This is purely for UI feedback. Chain is source of truth.
+        let status = 'NEEDS_HUMAN_REVIEW';
+        if (aiConfidence >= threshold) status = 'APPROVED'; // Should be 'AI_VERIFIED' really, but existing frontend expects APPROVED
+        else if (aiConfidence < threshold / 2) status = 'REJECTED';
+        else status = 'JURY_VOTING'; // Maps to NEEDS_HUMAN_REVIEW/JURY
 
         const { error: updateError } = await supabaseClient
             .from('submissions')
             .update({
-                status,
-                verification_trace: trace
+                status: status === 'JURY_VOTING' ? 'NEEDS_HUMAN_REVIEW' : status, // Map back to DB enum if needed
+                verification_trace: trace,
+                ai_confidence: aiConfidence
             })
             .eq('id', submission.id)
 
