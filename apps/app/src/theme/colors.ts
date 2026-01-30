@@ -1,36 +1,48 @@
 /**
- * BountyFi Brand - Playful Victory Edition
- * Admiral Blue, Winner Gold, Success Green
+ * BountyFi Brand - Playful Gamified (Ivory Blue one shade brighter)
  */
 
 export const colors = {
-  // Primary - Admiral Blue
-  admiralBlueDark: '#1E3A8A',
-  admiralBlueBright: '#3B82F6',
-  admiralBlueLight: '#60A5FA',
+  // Primary - Ivory Blue (brighter)
+  ivoryBlue: '#5B8DAF',
+  ivoryBlueLight: '#7CADCF',
+  ivoryBlueDark: '#3A6478',
+
+  // Legacy aliases
+  admiralBlueDark: '#3A6478',
+  admiralBlueBright: '#5B8DAF',
+  admiralBlueLight: '#7CADCF',
+
+  // Palette
+  cream: '#FFF8F0',
+  creamDark: '#F5EBD9',
+  sunshine: '#FFD166',
+  coral: '#FF8C6B',
+  grass: '#7BC67E',
+  lavender: '#A685D9',
 
   // Accent
-  winnerGold: '#FBBF24',
-  deepGold: '#F59E0B',
-  successGreen: '#10B981',
+  winnerGold: '#FFD166',
+  deepGold: '#FF8C6B',
+  successGreen: '#7BC67E',
   white: '#FFFFFF',
 
   // Supporting (UI)
-  textGray: '#6B7280',
-  lightGray: '#F9FAFB',
-  navyBlack: '#1E293B',
+  textGray: '#666666',
+  lightGray: '#FFF8F0',
+  navyBlack: '#3A6478',
   borderGray: '#E5E7EB',
 
   // Semantic
-  error: '#EF4444',
-  warning: '#F59E0B',
+  error: '#FF4B4B',
+  warning: '#FFD166',
 } as const;
 
-/** Primary blue gradient (135deg): dark → bright. Use with LinearGradient or as fallback. */
+/** Gradients using ivory blue (one shade brighter). */
 export const gradientStops = {
-  primaryBlue: ['#1E3A8A', '#3B82F6'] as const,
-  gold: ['#FBBF24', '#F59E0B', '#FBBF24'] as const,
-  success: ['#3B82F6', '#10B981'] as const,
+  primaryBlue: ['#5B8DAF', '#7CADCF'] as const,
+  gold: ['#FFD166', '#FF8C6B', '#FFD166'] as const,
+  success: ['#7BC67E', '#5DC561'] as const,
 } as const;
 
 export type Colors = typeof colors;

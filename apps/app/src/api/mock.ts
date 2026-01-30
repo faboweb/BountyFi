@@ -193,6 +193,10 @@ export const mockValidationsApi = {
       if (submission.votes.length >= 3) {
         if (approveCount >= 2) {
           submission.status = 'approved';
+          // Once your submission is verified, you get one ticket
+          if (submission.user_id === MOCK_USER.id) {
+            MOCK_USER.tickets = (MOCK_USER.tickets ?? 0) + 1;
+          }
           mockWebSocket.emit('submission.updated', {
             submission_id: request.submission_id,
             status: 'approved',
@@ -209,11 +213,36 @@ export const mockValidationsApi = {
   },
 };
 
-// Users API
+// Users API – jury diamonds and audit penalties
 export const mockUsers = {
   async getMe(): Promise<User> {
     await delay(API_CONFIG.MOCK_DELAY);
     return { ...MOCK_USER };
+  },
+
+  /** +1 diamond per correct verification */
+  async addDiamonds(amount: number): Promise<void> {
+    await delay(API_CONFIG.MOCK_DELAY);
+    MOCK_USER.diamonds = Math.max(0, (MOCK_USER.diamonds ?? 0) + amount);
+  },
+
+  /** Record failed audit (wrong vote on same-image pair). Returns penalty applied. */
+  async recordAuditPenalty(): Promise<{ diamonds_lost: number; trusted_network_lost_ticket: boolean }> {
+    await delay(API_CONFIG.MOCK_DELAY);
+    const failCount = (MOCK_USER.audit_fail_count ?? 0) + 1;
+    MOCK_USER.audit_fail_count = failCount;
+    if (failCount === 1) {
+      MOCK_USER.diamonds = Math.max(0, (MOCK_USER.diamonds ?? 0) - 1);
+      return { diamonds_lost: 1, trusted_network_lost_ticket: false };
+    }
+    if (failCount === 2) {
+      MOCK_USER.diamonds = Math.max(0, (MOCK_USER.diamonds ?? 0) - 5);
+      return { diamonds_lost: 5, trusted_network_lost_ticket: false };
+    }
+    // 3rd time: trusted network loses 1 ticket (user's share)
+    MOCK_USER.tickets = Math.max(0, MOCK_USER.tickets - 1);
+    MOCK_USER.audit_fail_count = 0; // reset tier after 3rd
+    return { diamonds_lost: 0, trusted_network_lost_ticket: true };
   },
 };
 

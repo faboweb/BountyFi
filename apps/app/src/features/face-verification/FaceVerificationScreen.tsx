@@ -1,5 +1,5 @@
 // Face Verification Screen – Selfie enrollment for campaigns requiring face recognition
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
+  Linking,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -95,6 +96,13 @@ export function FaceVerificationScreen() {
     );
   }
 
+  const sponsorAd = useMemo(() => {
+    const sponsors = campaign.sponsors;
+    if (!sponsors?.length) return null;
+    const index = Math.floor(Math.random() * sponsors.length);
+    return sponsors[index];
+  }, [campaign.id, campaign.sponsors?.length]);
+
   // If already enrolled, redirect to submit proof
   if (verificationStatus?.is_enrolled) {
     return (
@@ -153,6 +161,19 @@ export function FaceVerificationScreen() {
               onCapture={handleSelfieCapture}
               onError={(error) => Alert.alert('Error', error)}
             />
+          </View>
+        )}
+
+        {sponsorAd && (
+          <View style={styles.sponsorAd}>
+            <Text style={styles.sponsorAdText}>
+              This mission was made possible by <Text style={styles.sponsorAdName}>{sponsorAd.name}</Text>.
+            </Text>
+            {sponsorAd.maps_url ? (
+              <TouchableOpacity onPress={() => Linking.openURL(sponsorAd.maps_url!)}>
+                <Text style={styles.sponsorAdLink}>View on map</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         )}
       </View>
@@ -219,5 +240,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  sponsorAd: {
+    marginTop: 28,
+    paddingTop: 20,
+    borderTopWidth: 2,
+    borderTopColor: '#5B8DAF',
+    alignItems: 'center',
+  },
+  sponsorAdText: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#3A6478',
+    textAlign: 'center',
+    lineHeight: 26,
+  },
+  sponsorAdName: {
+    fontWeight: '800',
+    color: '#FF8C6B',
+  },
+  sponsorAdLink: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#5B8DAF',
+    marginTop: 10,
   },
 });

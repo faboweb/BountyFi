@@ -163,7 +163,7 @@ export function StartCampaignScreen() {
                   <Marker
                     coordinate={pin}
                     draggable
-                    onDragEnd={(e) => setPin(e.nativeEvent.coordinate)}
+                    onDragEnd={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => setPin(e.nativeEvent.coordinate)}
                   />
                 )}
               </MapView>

@@ -5,6 +5,10 @@ node_modules
 .vscode
 *.log
 
+# Cursor – keep MCP config (may contain API keys) out of git
+.cursor/
+.cursor/mcp.json
+
 # Foundry
 out/
 cache/

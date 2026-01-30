@@ -1,5 +1,4 @@
-// Validate Queue Screen
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,53 +8,121 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Dimensions,
   Animated,
 } from 'react-native';
-// MapView removed to bypass RNMapsAirModule error
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/context';
 import { mockWebSocket } from '../../api/mock';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
-import { Card } from '../../components/Card';
-import { Badge } from '../../components/Badge';
-import { Submission, Campaign } from '../../api/types';
+import { Submission } from '../../api/types';
 
-const { width } = Dimensions.get('window');
+/** Queue item: real submission or synthetic audit (same image as before & after; correct vote = reject) */
+type QueueItem = (Submission & { is_audit?: boolean }) | { id: string; before_photo_url: string; after_photo_url: string; is_audit: true };
 
-type VerificationType = 'comparison' | 'photo' | 'checkin';
+const AUDIT_PROBABILITY = 0.2; // ~20% of items can be random audits
+
+function buildQueue(visibleSubmissions: Submission[]): QueueItem[] {
+  const list: QueueItem[] = [];
+  visibleSubmissions.forEach((sub, i) => {
+    list.push(sub);
+    if (sub.before_photo_url && sub.after_photo_url && Math.random() < AUDIT_PROBABILITY) {
+      const sameImage = Math.random() < 0.5 ? sub.before_photo_url : sub.after_photo_url;
+      list.push({
+        id: `audit_${Date.now()}_${i}`,
+        before_photo_url: sameImage,
+        after_photo_url: sameImage,
+        is_audit: true,
+      });
+    }
+  });
+  return list;
+}
 
 export function ValidateQueueScreen() {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
-  const [currentSubmissionIndex, setCurrentSubmissionIndex] = useState(0);
+  const { user, refreshUser } = useAuth();
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [queue, setQueue] = useState<QueueItem[]>([]);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const hybridPulse = useRef(new Animated.Value(1)).current;
+  const queueRef = useRef<QueueItem[]>([]);
+  const indexRef = useRef(0);
+  const mountedRef = useRef(true);
+  queueRef.current = queue;
+  indexRef.current = currentIndex;
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    const pulse = () => {
+      Animated.sequence([
+        Animated.timing(hybridPulse, { toValue: 0.88, duration: 600, useNativeDriver: true }),
+        Animated.timing(hybridPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]).start(() => setTimeout(pulse, 2500));
+    };
+    setTimeout(pulse, 800);
+  }, [hybridPulse]);
 
   const { data: submissions, isLoading, refetch } = useQuery({
     queryKey: ['submissions', 'pending'],
     queryFn: () => api.submissions.getPending(),
   });
-  
-  const visibleSubmissions =
-    submissions?.filter((s) => !user || s.user_id !== user.id) ?? [];
-  const currentSubmission = visibleSubmissions[currentSubmissionIndex];
 
-  // Fetch campaign data for current submission
+  const visibleSubmissions = useMemo(
+    () => submissions?.filter((s: Submission) => !user || s.user_id !== user.id) ?? [],
+    [submissions, user]
+  );
+
+  useEffect(() => {
+    if (visibleSubmissions.length > 0 && queue.length === 0) {
+      setQueue(buildQueue(visibleSubmissions));
+    }
+  }, [visibleSubmissions.length]);
+
+  const currentItem = queue[currentIndex];
+  const isAudit = currentItem?.is_audit === true;
+  const currentSubmission = !isAudit ? (currentItem as Submission) : null;
+
+  const [imageErrors, setImageErrors] = useState<{ before?: boolean; after?: boolean }>({});
+  useEffect(() => {
+    setImageErrors({});
+  }, [currentIndex, currentItem?.id]);
+  const onBeforeError = () => setImageErrors((e) => ({ ...e, before: true }));
+  const onAfterError = () => setImageErrors((e) => ({ ...e, after: true }));
+
   const { data: campaign } = useQuery({
     queryKey: ['campaign', currentSubmission?.campaign_id],
-    queryFn: () => currentSubmission ? api.campaigns.getById(currentSubmission.campaign_id) : null,
+    queryFn: async () => {
+      try {
+        return currentSubmission ? await api.campaigns.getById(currentSubmission.campaign_id) : null;
+      } catch {
+        return null;
+      }
+    },
     enabled: !!currentSubmission,
   });
 
-  // WebSocket subscription
-  useEffect(() => {
-    const handleSubmissionUpdate = () => queryClient.invalidateQueries({ queryKey: ['submissions'] });
-    const handleValidationUpdate = () => queryClient.invalidateQueries({ queryKey: ['submissions'] });
+  const { data: userData, refetch: refetchUser } = useQuery({
+    queryKey: ['user', 'me'],
+    queryFn: () => api.users.getMe(),
+    enabled: !!user?.id,
+  });
+  const diamonds = userData?.diamonds ?? user?.diamonds ?? 0;
+  const auditFailCount = userData?.audit_fail_count ?? user?.audit_fail_count ?? 0;
 
+  useEffect(() => {
+    const handleSubmissionUpdate = () =>
+      queryClient.invalidateQueries({ queryKey: ['submissions'] });
+    const handleValidationUpdate = () =>
+      queryClient.invalidateQueries({ queryKey: ['submissions'] });
     mockWebSocket.on('submission.updated', handleSubmissionUpdate);
     mockWebSocket.on('validation.count.updated', handleValidationUpdate);
-
     return () => {
       mockWebSocket.removeListener('submission.updated', handleSubmissionUpdate);
       mockWebSocket.removeListener('validation.count.updated', handleValidationUpdate);
@@ -70,168 +137,284 @@ export function ValidateQueueScreen() {
     setTimeout(callback, 150);
   };
 
-  const voteMutation = useMutation({
-    mutationFn: async (vote: 'approve' | 'reject') => {
-      if (!currentSubmission) throw new Error('No submission selected');
-      return api.validations.submit({ submission_id: currentSubmission.id, vote });
-    },
-    onSuccess: () => {
+  const advanceToNext = () => {
+    try {
       queryClient.invalidateQueries({ queryKey: ['submissions'] });
-      animateTransition(() => {
-        if (submissions && currentSubmissionIndex < submissions.length - 1) {
-          setCurrentSubmissionIndex(currentSubmissionIndex + 1);
+      queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
+      if (refreshUser) refreshUser();
+      if (user?.id) refetchUser();
+    } catch (_) {
+      // ignore
+    }
+    animateTransition(() => {
+      if (!mountedRef.current) return;
+      try {
+        const q = queueRef.current;
+        const idx = indexRef.current;
+        const nextIndex = idx + 1;
+        if (nextIndex < q.length) {
+          setCurrentIndex(nextIndex);
         } else {
-          refetch();
-          setCurrentSubmissionIndex(0);
+          setQueue([]);
+          setCurrentIndex(0);
+          try {
+            refetch();
+          } catch (_) {
+            // ignore
+          }
         }
-      });
+      } catch (_) {
+        setQueue([]);
+        setCurrentIndex(0);
+        try {
+          refetch();
+        } catch (_) {
+          // ignore
+        }
+      }
+    });
+  };
+
+  const voteMutation = useMutation({
+    mutationFn: async (vote: 'approve' | 'reject'): Promise<{ penalty?: { diamonds_lost: number; trusted_network_lost_ticket: boolean } }> => {
+      if (isAudit) {
+        if (vote === 'reject') {
+          await api.users.addDiamonds(1);
+          return {};
+        }
+        const penalty = await api.users.recordAuditPenalty();
+        return { penalty };
+      }
+      if (!currentSubmission) throw new Error('No submission selected');
+      await api.validations.submit({ submission_id: currentSubmission.id, vote });
+      await api.users.addDiamonds(1);
+      return {};
+    },
+    onSuccess: (data: any) => {
+      if (data?.penalty) {
+        const { diamonds_lost, trusted_network_lost_ticket } = data.penalty;
+        const msg =
+          trusted_network_lost_ticket
+            ? '3rd audit fail: your trusted network loses 1 ticket. Stay attentive!'
+            : diamonds_lost > 0
+              ? `Audit fail: −${diamonds_lost} 💎. Same-image pairs must be rejected.`
+              : '';
+        if (msg) Alert.alert('Audit penalty', msg, [{ text: 'OK' }]);
+      }
+      // Defer so state updates happen after mutation completes (avoids crash when moving to next)
+      setTimeout(() => advanceToNext(), 0);
     },
     onError: (error: any) => Alert.alert('Error', error.message || 'Failed to submit vote'),
   });
 
   const handleVote = (vote: 'approve' | 'reject') => voteMutation.mutate(vote);
-
-  // Determine Verification View Type
-  const getVerificationType = (sub: Submission): VerificationType => {
-      if (sub.gesture_photo_url) return 'checkin';
-      if (sub.before_photo_url && sub.after_photo_url && sub.before_photo_url !== sub.after_photo_url) return 'comparison';
-      return 'photo';
+  const handleUnclear = () => {
+    animateTransition(() => {
+      if (currentIndex < queue.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+      } else {
+        refetch();
+        setQueue(visibleSubmissions.length ? buildQueue(visibleSubmissions) : []);
+        setCurrentIndex(0);
+      }
+    });
   };
 
   if (isLoading) {
     return (
       <View style={[styles.container, styles.center]}>
-        <ActivityIndicator size="large" color={Colors.primaryBright} />
+        <ActivityIndicator size="large" color={Colors.ivoryBlue} />
       </View>
     );
   }
 
-  if (!visibleSubmissions || visibleSubmissions.length === 0) {
+  const hasQueue = queue.length > 0;
+  const noPending = !visibleSubmissions?.length;
+
+  if (noPending && !hasQueue) {
     return (
       <View style={[styles.container, styles.center, { padding: Spacing.xl }]}>
-        <View style={styles.emptyIconContainer}>
-             <Text style={{ fontSize: 40 }}>🎉</Text>
-        </View>
-        <Text style={styles.emptyText}>All Caught Up!</Text>
-        <Text style={styles.emptySubtext}>There are no pending submissions to verify right now. Check back later.</Text>
-        <TouchableOpacity onPress={() => refetch()} style={styles.refreshButton}>
-             <Text style={styles.refreshButtonText}>Refresh</Text>
-        </TouchableOpacity>
+        <Text style={styles.emptyText}>Nothing left to validate. Come back soon!</Text>
       </View>
     );
   }
 
-  if (!currentSubmission) return <View style={styles.container} />;
+  if (!hasQueue || !currentItem) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color={Colors.ivoryBlue} />
+      </View>
+    );
+  }
 
-  const verificationType = getVerificationType(currentSubmission);
-  const isOwnSubmission = user && currentSubmission.user_id === user.id;
-  
-  // Safe calculate time diff
-  const timeDiff = (() => {
-      const start = new Date(currentSubmission.before_timestamp).getTime();
-      const end = new Date(currentSubmission.after_timestamp).getTime();
-      return isNaN(start) || isNaN(end) ? 0 : Math.round((end - start) / 60000);
-  })();
+  const isOwnSubmission = !isAudit && user && (currentItem as Submission).user_id === user.id;
+  const beforeUri = currentItem.before_photo_url;
+  const afterUri = currentItem.after_photo_url;
+  const juryTaskNum = currentIndex + 1;
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 100 }}>
-       <View style={styles.header}>
-            <Text style={styles.headerTitle}>Verify Mission</Text>
-            <View style={styles.counterBadge}>
-                <Text style={styles.counterText}>{currentSubmissionIndex + 1} / {visibleSubmissions.length}</Text>
-            </View>
-       </View>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.scrollContent}
+      showsVerticalScrollIndicator={false}
+    >
+      <Animated.View style={{ opacity: fadeAnim }}>
+        {/* Hybrid verification info – small pulse (lavender style) */}
+        <Animated.View style={[styles.hybridCard, { opacity: hybridPulse }]}>
+          <Text style={styles.hybridTitle}>Hybrid: 2 peers + 1 AI</Text>
+          <Text style={styles.hybridDesc}>
+            Deterministic checks: GPS ✓ · Photos ✓ · Rules ✓
+          </Text>
+          <View style={styles.hybridReward}>
+            <Text style={styles.hybridRewardText}>+1 💎 per correct verification</Text>
+          </View>
+          <Text style={styles.hybridPenalty}>
+            Random audits (same-image pairs): wrong vote → 1st −1💎, 2nd −5💎, 3rd your trusted network loses 1 ticket.
+          </Text>
+        </Animated.View>
 
-       <Animated.View style={{ opacity: fadeAnim, padding: Spacing.md }}>
-         {/* Mission Info - Common for all */}
-         <Card style={styles.missionCard}>
-            <View style={styles.missionHeader}>
-                <Badge label={verificationType.toUpperCase()} variant="blue" />
-                {verificationType === 'comparison' && <Text style={styles.missionTime}>{timeDiff}min duration</Text>}
-            </View>
-            <Text style={styles.missionTitle}>{campaign?.title || 'Unknown Mission'}</Text>
-            <View style={styles.locationRow}>
-                <Text>📍</Text>
-                <Text style={styles.locationText}>
-                    {currentSubmission.gps_lat.toFixed(4)}, {currentSubmission.gps_lng.toFixed(4)}
-                </Text>
-            </View>
-         </Card>
+        {/* Jury task */}
+        <View style={styles.juryCard}>
+          <LinearGradient
+            colors={[Colors.lavender, '#9071C9']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.juryBadge}
+          >
+            <Text style={styles.juryBadgeText}>
+              {isAudit ? '🔍 Audit' : '⚖️ Jury'} #{juryTaskNum}
+            </Text>
+          </LinearGradient>
+          <Text style={styles.juryTitle}>
+            {isAudit ? 'Same-image audit' : 'Review submission'}
+          </Text>
 
-         {/* Dynamic Content Based on Type */}
-         
-         {/* TYPE: COMPARISON */}
-         {verificationType === 'comparison' && (
-             <View style={styles.evidenceSection}>
-                <View style={styles.photoContainer}>
-                    <Badge label="BEFORE" style={styles.photoBadge} variant="gray" />
-                    <Image source={{ uri: currentSubmission.before_photo_url }} style={styles.photo} resizeMode="cover" />
+          <View style={styles.twoPhotosRow}>
+            <View style={styles.halfPhoto}>
+              <Text style={styles.photoLabel}>Before</Text>
+              {beforeUri && !imageErrors.before ? (
+                <Image
+                  source={{ uri: beforeUri }}
+                  style={styles.submissionImage}
+                  resizeMode="cover"
+                  onError={onBeforeError}
+                />
+              ) : (
+                <View style={styles.submissionImagePlaceholder}>
+                  <Text style={styles.submissionPlaceholder}>🖼️</Text>
                 </View>
-                <View style={styles.arrowContainer}>
-                    <View style={styles.arrowCircle}>
-                        <Text style={styles.arrowText}>→</Text>
-                    </View>
+              )}
+            </View>
+            <View style={styles.halfPhoto}>
+              <Text style={styles.photoLabel}>After</Text>
+              {afterUri && !imageErrors.after ? (
+                <Image
+                  source={{ uri: afterUri }}
+                  style={styles.submissionImage}
+                  resizeMode="cover"
+                  onError={onAfterError}
+                />
+              ) : (
+                <View style={styles.submissionImagePlaceholder}>
+                  <Text style={styles.submissionPlaceholder}>🖼️</Text>
                 </View>
-                <View style={styles.photoContainer}>
-                    <Badge label="AFTER" style={[styles.photoBadge, { backgroundColor: Colors.success }]} />
-                    <Image source={{ uri: currentSubmission.after_photo_url }} style={styles.photo} resizeMode="cover" />
-                </View>
-             </View>
-         )}
+              )}
+            </View>
+          </View>
 
-         {/* TYPE: PHOTO */}
-         {verificationType === 'photo' && (
-             <View style={styles.singlePhotoSection}>
-                 <Image source={{ uri: currentSubmission.before_photo_url }} style={styles.singlePhoto} resizeMode="cover" />
-                 <Badge label="PROOF" style={styles.photoBadgeLarge} variant="blue" />
-             </View>
-         )}
+          {!isAudit && (
+            <View style={styles.juryInfo}>
+              <View style={styles.infoChip}>
+                <Text style={styles.infoLabel}>GPS</Text>
+                <Text style={styles.infoValue}>✓</Text>
+              </View>
+              <View style={styles.infoChip}>
+                <Text style={styles.infoLabel}>AI</Text>
+                <Text style={styles.infoValue}>1 of 3</Text>
+              </View>
+              <View style={styles.infoChip}>
+                <Text style={styles.infoLabel}>Reward</Text>
+                <Text style={styles.infoValue}>+1 💎</Text>
+              </View>
+            </View>
+          )}
 
-         {/* TYPE: CHECKIN (Selfie + Map context) */}
-         {verificationType === 'checkin' && (
-             <View style={styles.checkinSection}>
-                 <View style={styles.checkinPhotoContainer}>
-                    <Image source={{ uri: currentSubmission.gesture_photo_url || currentSubmission.before_photo_url }} style={styles.checkinPhoto} resizeMode="cover" />
-                    <Badge label="SELFIE" style={styles.photoBadge} variant="gold" />
-                 </View>
-                 <View style={styles.checkinMapContainer}>
-                    <View style={[styles.map, { backgroundColor: '#E2E8F0', justifyContent: 'center', alignItems: 'center' }]}>
-                        <Text style={{ fontSize: 32 }}>📍</Text>
-                        <Text style={{ fontSize: 10, color: Colors.textGray, marginTop: 8 }}>Map Disabled</Text>
-                    </View>
-                    <View style={styles.mapBadge}>
-                        <Text style={styles.mapBadgeText}>📍 Verified Location</Text>
-                    </View>
-                 </View>
-             </View>
-         )}
-         
-         {/* Action Buttons */}
-         {!isOwnSubmission ? (
-             <View style={styles.actionContainer}>
-                 <TouchableOpacity 
-                    style={[styles.actionBtn, styles.rejectBtn]}
-                    onPress={() => handleVote('reject')}
-                    disabled={voteMutation.isPending}
-                 >
-                    <Text style={[styles.actionBtnText, { color: Colors.error }]}>✗ Reject</Text>
-                 </TouchableOpacity>
-                 
-                 <TouchableOpacity 
-                    style={[styles.actionBtn, styles.approveBtn]}
-                    onPress={() => handleVote('approve')}
-                    disabled={voteMutation.isPending}
-                 >
-                    <Text style={[styles.actionBtnText, { color: Colors.white }]}>✓ Verify</Text>
-                 </TouchableOpacity>
-             </View>
-         ) : (
-             <View style={styles.ownSubmissionBanner}>
-                 <Text style={styles.ownSubmissionText}>This is your submission. You cannot vote on it.</Text>
-             </View>
-         )}
+          <Text style={styles.juryQuestion}>
+            {isAudit
+              ? 'Are these a valid before/after pair? (Same image = Reject)'
+              : 'Does this submission show a valid before/after with GPS and rules met?'}
+          </Text>
 
-       </Animated.View>
+          {!isOwnSubmission ? (
+            <View style={styles.voteButtons}>
+              <TouchableOpacity
+                style={[styles.voteBtn, styles.voteApprove]}
+                onPress={() => handleVote('approve')}
+                disabled={voteMutation.isPending}
+              >
+                <LinearGradient
+                  colors={[Colors.grass, '#5DC561']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={styles.voteBtnText}>✓ Approve</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.voteBtn, styles.voteReject]}
+                onPress={() => handleVote('reject')}
+                disabled={voteMutation.isPending}
+              >
+                <LinearGradient
+                  colors={[Colors.coral, '#FF6B4A']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFill}
+                />
+                <Text style={styles.voteBtnText}>✗ Reject</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.voteBtn, styles.voteUnclear]}
+                onPress={handleUnclear}
+              >
+                <Text style={styles.voteUnclearText}>❓ Unclear / Skip</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.ownSubmissionBanner}>
+              <Text style={styles.ownSubmissionText}>
+                This is your submission. You cannot vote on it.
+              </Text>
+            </View>
+          )}
+        </View>
+
+        {/* Jury stats: diamonds + audit tier */}
+        <View style={styles.juryStatsCard}>
+          <Text style={styles.juryStatsLabel}>Your jury stats</Text>
+          <View style={styles.juryStatsRow}>
+            <View style={styles.juryStatItem}>
+              <Text style={[styles.juryStatValue, { color: Colors.sunshine }]}>{diamonds} 💎</Text>
+              <Text style={styles.juryStatLabel}>Diamonds</Text>
+            </View>
+            <View style={styles.juryStatItem}>
+              <Text style={[styles.juryStatValue, { color: Colors.ivoryBlue }]}>
+                {userData?.validations_completed ?? user?.validations_completed ?? 0}
+              </Text>
+              <Text style={styles.juryStatLabel}>Votes cast</Text>
+            </View>
+            <View style={styles.juryStatItem}>
+              <Text style={[styles.juryStatValue, { color: auditFailCount >= 2 ? Colors.coral : Colors.textGray }]}>
+                {auditFailCount}/3
+              </Text>
+              <Text style={styles.juryStatLabel}>Audit tier</Text>
+            </View>
+          </View>
+          {(userData?.trusted_network_ids?.length ?? user?.trusted_network_ids?.length ?? 0) > 0 && (
+            <Text style={styles.trustedNote}>Trusted network: win together; 3rd audit fail = network loses 1 ticket</Text>
+          )}
+        </View>
+      </Animated.View>
     </ScrollView>
   );
 }
@@ -239,237 +422,277 @@ export function ValidateQueueScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.cream,
   },
   center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      padding: Spacing.md,
-      backgroundColor: Colors.white,
-      borderBottomWidth: 1,
-      borderBottomColor: '#F1F5F9',
+  scrollContent: {
+    padding: Spacing.lg,
+    paddingBottom: 100,
   },
-  headerTitle: {
-      ...Typography.heading,
-      fontSize: 18,
+  juryCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xxl,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    ...Shadows.card,
   },
-  counterBadge: {
-      backgroundColor: '#EFF6FF',
-      paddingHorizontal: 12,
-      paddingVertical: 6,
-      borderRadius: BorderRadius.full,
+  juryBadge: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    marginBottom: Spacing.md,
+    overflow: 'hidden',
   },
-  counterText: {
-      color: Colors.primaryBright,
-      fontWeight: '700',
-      fontSize: 12,
+  juryBadgeText: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '600',
+    fontSize: 14,
+    color: Colors.white,
   },
-  missionCard: {
-      marginBottom: Spacing.lg,
-      padding: Spacing.md,
+  juryTitle: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 20,
+    color: Colors.ivoryBlueDark,
+    marginBottom: Spacing.md,
   },
-  missionHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: Spacing.sm,
+  hybridCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.lavender,
+    ...Shadows.sm,
   },
-  missionTime: {
-      fontSize: 12,
-      color: Colors.textGray,
-      fontWeight: '600',
+  hybridTitle: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 16,
+    color: Colors.ivoryBlueDark,
+    marginBottom: 4,
   },
-  missionTitle: {
-      ...Typography.heading,
-      fontSize: 18,
-      marginBottom: Spacing.xs,
+  hybridDesc: {
+    fontSize: 13,
+    color: Colors.textGray,
+    marginBottom: 8,
   },
-  locationRow: {
-      flexDirection: 'row',
-      alignItems: 'center',
+  hybridReward: {
+    marginBottom: 8,
   },
-  locationText: {
-      fontSize: 12,
-      color: Colors.textGray,
-      marginLeft: 4,
+  hybridRewardText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.grass,
   },
-  // Comparison Styles
-  evidenceSection: {
-      flexDirection: 'row',
-      marginBottom: Spacing.xl,
-      height: 180,
+  hybridPenalty: {
+    fontSize: 12,
+    color: Colors.textGray,
+    lineHeight: 18,
   },
-  photoContainer: {
-      flex: 1,
-      borderRadius: BorderRadius.lg,
-      overflow: 'hidden',
-      position: 'relative',
-      ...Shadows.card,
+  twoPhotosRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: Spacing.lg,
   },
-  photo: {
-      width: '100%',
-      height: '100%',
-      backgroundColor: '#000',
+  halfPhoto: {
+    flex: 1,
+    backgroundColor: Colors.creamDark,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: Colors.ivoryBlueLight,
   },
-  photoBadge: {
-      position: 'absolute',
-      top: 8,
-      left: 8,
-      zIndex: 10,
+  photoLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.textGray,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    backgroundColor: Colors.cream,
   },
-  arrowContainer: {
-      width: 40,
-      justifyContent: 'center',
-      alignItems: 'center',
-      zIndex: 10,
-      marginLeft: -20,
-      marginRight: -20,
+  submissionPreview: {
+    width: '100%',
+    height: 200,
+    backgroundColor: Colors.creamDark,
+    borderRadius: BorderRadius.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 3,
+    borderStyle: 'dashed',
+    borderColor: Colors.ivoryBlueLight,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  arrowCircle: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: Colors.white,
-      justifyContent: 'center',
-      alignItems: 'center',
-      ...Shadows.card,
+  submissionImage: {
+    width: '100%',
+    height: 120,
+    backgroundColor: Colors.creamDark,
   },
-  arrowText: {
-      fontWeight: '900',
-      color: Colors.primaryBright,
+  submissionImagePlaceholder: {
+    width: '100%',
+    height: 120,
+    backgroundColor: Colors.creamDark,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  // Single Photo Styles
-  singlePhotoSection: {
-      height: 250,
-      borderRadius: BorderRadius.lg,
-      overflow: 'hidden',
-      marginBottom: Spacing.xl,
-      ...Shadows.card,
-      position: 'relative',
+  trustedNote: {
+    fontSize: 11,
+    color: Colors.textGray,
+    marginTop: 8,
+    textAlign: 'center',
+    fontStyle: 'italic',
   },
-  singlePhoto: {
-      width: '100%',
-      height: '100%',
-      backgroundColor: '#000',
+  submissionPlaceholder: {
+    fontSize: 48,
   },
-  photoBadgeLarge: {
-      position: 'absolute',
-      top: 12,
-      left: 12,
+  juryInfo: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: Spacing.lg,
   },
-  // Checkin Styles
-  checkinSection: {
-      flexDirection: 'row',
-      height: 180,
-      marginBottom: Spacing.xl,
-      gap: Spacing.md,
+  infoChip: {
+    flex: 1,
+    backgroundColor: Colors.cream,
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
   },
-  checkinPhotoContainer: {
-      flex: 1,
-      borderRadius: BorderRadius.lg,
-      overflow: 'hidden',
-      position: 'relative',
-      ...Shadows.card,
+  infoLabel: {
+    fontSize: 11,
+    color: Colors.textGray,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-  checkinPhoto: {
-      width: '100%',
-      height: '100%',
+  infoValue: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '600',
+    fontSize: 16,
+    color: Colors.ivoryBlueDark,
   },
-  checkinMapContainer: {
-      flex: 1,
-      borderRadius: BorderRadius.lg,
-      overflow: 'hidden',
-      position: 'relative',
-      ...Shadows.card,
+  juryQuestion: {
+    fontSize: 14,
+    color: Colors.textGray,
+    lineHeight: 22,
+    marginBottom: Spacing.lg,
   },
-  map: {
-      width: '100%',
-      height: '100%',
+  voteButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
   },
-  mapBadge: {
-      position: 'absolute',
-      bottom: 8,
-      right: 8,
-      backgroundColor: Colors.white,
-      paddingHorizontal: 8,
-      paddingVertical: 4,
-      borderRadius: BorderRadius.sm,
-      ...Shadows.sm,
+  voteBtn: {
+    flex: 1,
+    minWidth: '45%',
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.card,
   },
-  mapBadgeText: {
-      fontSize: 10,
-      fontWeight: '700',
-      color: Colors.primaryBright,
+  voteApprove: {
+    minWidth: '45%',
   },
-  // Action Buttons
-  actionContainer: {
-      flexDirection: 'row',
-      gap: Spacing.md,
+  voteReject: {
+    minWidth: '45%',
   },
-  actionBtn: {
-      flex: 1,
-      paddingVertical: Spacing.lg,
-      borderRadius: BorderRadius.full,
-      alignItems: 'center',
-      justifyContent: 'center',
-      ...Shadows.sm,
+  voteUnclear: {
+    minWidth: '100%',
+    backgroundColor: Colors.cream,
   },
-  rejectBtn: {
-      backgroundColor: Colors.white,
-      borderWidth: 2,
-      borderColor: '#FEE2E2',
+  voteBtnText: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '600',
+    fontSize: 16,
+    color: Colors.white,
   },
-  approveBtn: {
-      backgroundColor: Colors.success,
-  },
-  actionBtnText: {
-      fontWeight: '800',
-      fontSize: 16,
+  voteUnclearText: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '600',
+    fontSize: 16,
+    color: Colors.ivoryBlueDark,
   },
   ownSubmissionBanner: {
-      backgroundColor: '#F3F4F6',
-      padding: Spacing.md,
-      borderRadius: BorderRadius.md,
-      alignItems: 'center',
+    backgroundColor: Colors.cream,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    alignItems: 'center',
   },
   ownSubmissionText: {
-      color: Colors.textGray,
-      fontWeight: '600',
+    color: Colors.textGray,
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  juryStatsCard: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    alignItems: 'center',
+    ...Shadows.card,
+  },
+  juryStatsLabel: {
+    fontSize: 13,
+    color: Colors.textGray,
+    marginBottom: Spacing.sm,
+  },
+  juryStatsRow: {
+    flexDirection: 'row',
+    gap: 24,
+    justifyContent: 'center',
+  },
+  juryStatItem: {
+    alignItems: 'center',
+  },
+  juryStatValue: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 24,
+  },
+  juryStatLabel: {
+    fontSize: 12,
+    color: Colors.textGray,
   },
   emptyIconContainer: {
-      width: 80,
-      height: 80,
-      borderRadius: 40,
-      backgroundColor: '#F0F9FF',
-      justifyContent: 'center',
-      alignItems: 'center',
-      marginBottom: Spacing.lg,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.cream,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
   },
   emptyText: {
-      ...Typography.heading,
-      marginBottom: Spacing.sm,
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 22,
+    color: Colors.ivoryBlueDark,
+    marginBottom: Spacing.sm,
   },
   emptySubtext: {
-      textAlign: 'center',
-      color: Colors.textGray,
-      marginBottom: Spacing.xl,
-      lineHeight: 22,
+    textAlign: 'center',
+    color: Colors.textGray,
+    marginBottom: Spacing.xl,
+    lineHeight: 22,
   },
   refreshButton: {
-      paddingVertical: Spacing.md,
-      paddingHorizontal: Spacing.xl,
-      borderRadius: BorderRadius.full,
-      backgroundColor: Colors.white,
-      borderWidth: 1,
-      borderColor: '#E2E8F0',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.white,
+    borderWidth: 1,
+    borderColor: Colors.creamDark,
   },
   refreshButtonText: {
-      fontWeight: '700',
-      color: Colors.primaryBright,
+    fontWeight: '700',
+    color: Colors.ivoryBlue,
   },
 });

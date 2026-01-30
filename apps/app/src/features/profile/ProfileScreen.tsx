@@ -9,6 +9,7 @@ import {
   Share,
   Image,
   SafeAreaView,
+  Animated,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/context';
@@ -20,6 +21,16 @@ import { Badge } from '../../components/Badge';
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
+  const avatarPulse = React.useRef(new Animated.Value(1)).current;
+  React.useEffect(() => {
+    const pulse = () => {
+      Animated.sequence([
+        Animated.timing(avatarPulse, { toValue: 1.04, duration: 450, useNativeDriver: true }),
+        Animated.timing(avatarPulse, { toValue: 1, duration: 450, useNativeDriver: true }),
+      ]).start(() => setTimeout(pulse, 3500));
+    };
+    setTimeout(pulse, 600);
+  }, [avatarPulse]);
 
   const { data: userData } = useQuery({
     queryKey: ['user', 'me'],
@@ -67,14 +78,14 @@ export function ProfileScreen() {
 
         <View style={styles.content}>
           <View style={styles.userSection}>
-            <View style={styles.avatarLarge}>
+            <Animated.View style={[styles.avatarLarge, { transform: [{ scale: avatarPulse }] }]}>
                <Text style={styles.avatarLargeText}>
                  {displayUser.email ? displayUser.email[0].toUpperCase() : 'U'}
                </Text>
                <View style={styles.levelBadge}>
                  <Text style={styles.levelText}>LVL 12</Text>
                </View>
-            </View>
+            </Animated.View>
             <Text style={styles.userName}>{displayUser.email}</Text>
             <TouchableOpacity style={styles.walletBadge}>
               <Text style={styles.walletAddress}>{formatWalletAddress(displayUser.wallet_address)}</Text>
@@ -94,19 +105,6 @@ export function ProfileScreen() {
             <Card style={styles.statCard}>
               <Text style={[styles.statVal, { color: Colors.primaryBright }]}>{referralCode?.referrals_count || 0}</Text>
               <Text style={styles.statLabel}>Friends</Text>
-            </Card>
-          </View>
-
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>MY IMPACT</Text>
-            <Card style={styles.impactCard}>
-              <View style={styles.impactRow}>
-                <View style={styles.impactIcon}><Text style={{ fontSize: 24 }}>🌱</Text></View>
-                <View>
-                  <Text style={styles.impactVal}>12.5 kg</Text>
-                  <Text style={styles.impactLabel}>Plastic Removed</Text>
-                </View>
-              </View>
             </Card>
           </View>
 
@@ -262,35 +260,6 @@ const styles = StyleSheet.create({
     color: Colors.textGray,
     marginBottom: Spacing.md,
     letterSpacing: 1,
-  },
-  impactCard: {
-    padding: Spacing.md,
-    backgroundColor: '#F0FDF4',
-    borderColor: '#DCFCE7',
-  },
-  impactRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  impactIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.white,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: Spacing.md,
-    ...Shadows.card,
-  },
-  impactVal: {
-    ...Typography.heading,
-    fontSize: 18,
-    color: Colors.success,
-  },
-  impactLabel: {
-    fontSize: 12,
-    color: Colors.textGray,
-    fontWeight: '700',
   },
   referralCard: {
     padding: Spacing.lg,

@@ -10,6 +10,7 @@ import {
   LeaderboardEntry,
   Lottery,
   LoginRequest,
+  LoginWithWalletRequest,
   CoinbaseLoginRequest,
   SubmitSubmissionRequest,
   ValidationRequest,
@@ -147,6 +148,15 @@ export const validationsApi = {
 export const usersApi = {
   async getMe(): Promise<User> {
     const response = await apiClient.get<User>('/users/me');
+    return response.data;
+  },
+
+  async addDiamonds(amount: number): Promise<void> {
+    await apiClient.post('/users/jury/diamonds', { amount });
+  },
+
+  async recordAuditPenalty(): Promise<{ diamonds_lost: number; trusted_network_lost_ticket: boolean }> {
+    const response = await apiClient.post<{ diamonds_lost: number; trusted_network_lost_ticket: boolean }>('/users/jury/audit-penalty');
     return response.data;
   },
 };

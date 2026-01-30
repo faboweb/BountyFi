@@ -26,10 +26,10 @@ export const borderRadius = {
   xl: 20,
 } as const;
 
-/** Colored shadows (blue/gold tint, not pure black) */
+/** Colored shadows (ivory blue tint) */
 export const shadows = {
   primary: {
-    shadowColor: colors.admiralBlueDark,
+    shadowColor: colors.ivoryBlue,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 12,

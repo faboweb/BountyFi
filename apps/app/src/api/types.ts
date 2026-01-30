@@ -9,7 +9,16 @@ export interface User {
   referred_by?: string;
   validations_completed?: number;
   accuracy_rate?: number;
+  /** Jury reward currency: +1 per correct verification */
+  diamonds?: number;
+  /** Count of failed random audits (same-image pairs); drives penalty tier */
+  audit_fail_count?: number;
+  /** Trusted network / family – win together, penalized as group on 3rd audit fail */
+  trusted_network_ids?: string[];
 }
+
+/** Community quest type: uniserv_cleanup = one-day, before+after; no_burn = 3 months, one photo daily; ban_plastic = selfie + plastic replacement photo (Chiang Mai) */
+export type QuestType = 'uniserv_cleanup' | 'no_burn' | 'ban_plastic';
 
 export interface Campaign {
   id: string;
@@ -23,6 +32,12 @@ export interface Campaign {
   checkpoints: Checkpoint[];
   gestures: Gesture[];
   status: 'active' | 'upcoming' | 'ended';
+  /** When set, enforces proof rules: uniserv_cleanup (before+after, min 1min, once); no_burn (one photo/day, 3mo) */
+  quest_type?: QuestType;
+  /** Prize chest: what you can win when redeeming tickets from this quest */
+  prize_chest?: { label: string; emoji: string }[];
+  /** Sponsors (companies, cafés, individuals) – shown under prizes to attract sponsors */
+  sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
 }
 
 export interface Checkpoint {
@@ -55,6 +70,8 @@ export interface Submission {
   status: 'pending' | 'approved' | 'rejected';
   votes: Validation[];
   created_at: string;
+  /** Random audit: same image shown as "before" and "after"; correct vote is reject */
+  is_audit?: boolean;
 }
 
 export interface Validation {

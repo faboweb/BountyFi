@@ -54,10 +54,15 @@ if (g.crypto && g.crypto.subtle) {
             g.crypto.subtle[method] = function () {
                 const args = Array.from(arguments);
 
-                // Normalization for msrcrypto: digest prefers object { name: 'SHA-256' } over string 'SHA-256'
-                if (method === 'digest' && typeof args[0] === 'string') {
-                    console.log(`[crypto.subtle.digest] Normalizing string algorithm "${args[0]}" to object`);
-                    args[0] = { name: args[0] };
+                // Normalization: Web Crypto uses 'SHA-256' (hyphen). Some libs (e.g. ethers) pass 'SHA256'.
+                if (method === 'digest' && args[0] !== undefined) {
+                    const raw = args[0];
+                    const name = typeof raw === 'string' ? raw : (raw && (raw as any).name);
+                    if (name === 'SHA256' || name === 'SHA-256') {
+                        args[0] = { name: 'SHA-256' };
+                    } else if (typeof raw === 'string') {
+                        args[0] = { name: raw };
+                    }
                 }
 
                 console.log(`[crypto.subtle.${method}] CALL:`, JSON.stringify(args, (key, value) => {
@@ -110,20 +115,10 @@ if (g.crypto && g.crypto.subtle) {
         .then((jwk: any) => console.log('[index.ts] Test exportKey SUCCESS:', jwk.kty))
         .catch((err: any) => console.error('[index.ts] Test crypto flow FAILED:', err));
 
-    // Test Digest variations to find what works
-    const testDigest = (algo: any, label: string) => {
-        g.crypto.subtle.digest(algo, new Uint8Array([1, 2, 3]))
-            .then(() => console.log(`[index.ts] Digest Test (${label}) SUCCESS`))
-            .catch((e: any) => console.error(`[index.ts] Digest Test (${label}) FAILED:`, e.message));
-    };
-
-    console.log('[index.ts] Starting Digest Algorithm Tests...');
-    setTimeout(() => {
-        testDigest('SHA-256', 'String: "SHA-256"');
-        testDigest('SHA256', 'String: "SHA256"');
-        testDigest({ name: 'SHA-256' }, 'Object: { name: "SHA-256" }');
-        testDigest({ name: 'SHA256' }, 'Object: { name: "SHA256" }');
-    }, 1000); // Small delay to ensure init
+    // Optional: verify digest works (SHA-256 is the standard name)
+    g.crypto.subtle.digest({ name: 'SHA-256' }, new Uint8Array([1, 2, 3]))
+        .then(() => console.log('[index.ts] Digest (SHA-256) OK'))
+        .catch((e: any) => console.warn('[index.ts] Digest test:', e?.message));
 }
 
 import { Buffer } from 'buffer';

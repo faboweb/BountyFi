@@ -1,9 +1,10 @@
 import * as React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, Image, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../../api/client';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Card } from '../../components/Card';
-import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
 
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -11,15 +12,36 @@ import { AppStackParamList } from '../../navigation/AppNavigator';
 
 const { width } = Dimensions.get('window');
 
+/** Mock display names for trusted network members (by user id) */
+const TRUSTED_NETWORK_DISPLAY: Record<string, { name: string; initial: string }> = {
+  user_2: { name: 'Jordan', initial: 'J' },
+  user_3: { name: 'Sam', initial: 'S' },
+};
+
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
 export function TreasureWalletScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const boostPulse = React.useRef(new Animated.Value(1)).current;
+  const { data: user } = useQuery({
+    queryKey: ['user', 'me'],
+    queryFn: () => api.users.getMe(),
+  });
+  const trustedIds = user?.trusted_network_ids ?? [];
+  const trustedProfiles = trustedIds.map((id: string) => ({
+    id,
+    ...(TRUSTED_NETWORK_DISPLAY[id] ?? { name: `Member`, initial: id.slice(-1).toUpperCase() }),
+  }));
 
-  const winners = [
-    { id: '1', name: 'Sarah J.', amount: '+$50', location: 'Park Cleanup • Seattle', avatar: 'SJ' },
-    { id: '2', name: 'Mike K.', amount: '+$75', location: 'Beach Clean • Miami', avatar: 'MK' },
-  ];
+  React.useEffect(() => {
+    const pulse = () => {
+      Animated.sequence([
+        Animated.timing(boostPulse, { toValue: 1.12, duration: 400, useNativeDriver: true }),
+        Animated.timing(boostPulse, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]).start(() => setTimeout(pulse, 2800));
+    };
+    setTimeout(pulse, 500);
+  }, [boostPulse]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -41,14 +63,17 @@ export function TreasureWalletScreen() {
           <Card style={styles.vaultCard}>
             <View style={styles.vaultHeader}>
               <Badge label="MY VAULT" variant="blue" style={styles.vaultBadge} />
-              <View style={styles.boostBadge}>
+              <Animated.View style={[styles.boostBadge, { transform: [{ scale: boostPulse }] }]}>
                 <Text style={styles.boostIcon}>🎁</Text>
                 <Text style={styles.boostText}>x2 Boost</Text>
-              </View>
+              </Animated.View>
             </View>
-            <Text style={styles.vaultAmount}>12,450</Text>
+            <Text style={styles.vaultAmount}>23</Text>
             <Text style={styles.vaultLabel}>Bounty Tickets</Text>
-            
+            <View style={styles.diamondsRow}>
+              <Text style={styles.diamondsValue}>32</Text>
+              <Text style={styles.diamondsLabel}>💎 Diamonds</Text>
+            </View>
             <View style={styles.vaultFooter}>
               <View style={styles.earnedToday}>
                 <View style={styles.plusIcon}><Text style={{ color: Colors.white }}>+</Text></View>
@@ -57,7 +82,10 @@ export function TreasureWalletScreen() {
                   <Text style={styles.earnedLabel}>Earned Today</Text>
                 </View>
               </View>
-              <TouchableOpacity style={styles.redeemButton}>
+              <TouchableOpacity
+                style={styles.redeemButton}
+                onPress={() => navigation.navigate('RedeemChallenges' as never)}
+              >
                 <Text style={styles.redeemText}>Redeem</Text>
               </TouchableOpacity>
             </View>
@@ -116,80 +144,28 @@ export function TreasureWalletScreen() {
             </View>
           </View>
 
-          {/* Prize Chests */}
+          {/* Your trusted network */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { marginBottom: Spacing.md }]}>Prize Chests</Text>
-            
-            <Card style={styles.chestCard}>
-              <View style={styles.chestInfoRow}>
-                <Image 
-                  source={{ uri: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?auto=format&fit=crop&w=150&q=80' }} 
-                  style={styles.prizeImage} 
-                />
-                <View style={styles.chestDetails}>
-                  <Text style={styles.prizeTitle}>Nike Gift Card</Text>
-                  <View style={styles.timerRow}>
-                    <Text>⏱️</Text>
-                    <Text style={styles.timerText}>04:22:18 Left</Text>
-                  </View>
-                </View>
-                <View style={styles.oddsCircle}>
-                  <Text style={styles.oddsText}>75%</Text>
-                  <Text style={styles.oddsLabel}>MY ODDS</Text>
-                </View>
-              </View>
-              <Button title="Unlock Chest 50 Tlx" onPress={() => {}} style={styles.chestButton} />
-            </Card>
-
-            <Card style={[styles.chestCard, { opacity: 0.8 }]}>
-              <View style={styles.chestInfoRow}>
-                <View style={[styles.prizeImage, { backgroundColor: Colors.missionQuest, justifyContent: 'center', alignItems: 'center' }]}>
-                  <Text style={{ fontSize: 30 }}>💵</Text>
-                </View>
-                <View style={styles.chestDetails}>
-                  <Text style={styles.prizeTitle}>Community Pot</Text>
-                  <View style={styles.timerRow}>
-                    <Text>📅</Text>
-                    <Text style={styles.timerText}>Tomorrow</Text>
-                  </View>
-                </View>
-                <View style={[styles.oddsCircle, { borderColor: '#E5E7EB' }]}>
-                  <View style={[styles.oddsProgress, { height: 10, width: 10, borderRadius: 5, backgroundColor: '#E5E7EB' }]} />
-                  <Text style={styles.oddsLabel}>MY ODDS</Text>
-                </View>
-              </View>
-              <TouchableOpacity style={styles.addEntriesBtn}>
-                <Text style={styles.addEntriesText}>Add Tickets <Text style={{ fontWeight: 'normal' }}>+1 Entry</Text></Text>
-              </TouchableOpacity>
-            </Card>
-          </View>
-
-          {/* Winners Feed */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Winners Feed</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.winnersRow}>
-              {winners.map(winner => (
-                <Card key={winner.id} style={styles.winnerCard}>
-                  <View style={styles.winnerHeader}>
-                    <View style={styles.winnerAvatar}>
-                      <Text style={styles.winnerAvatarText}>{winner.avatar}</Text>
+            <Text style={styles.sectionTitle}>Your trusted network</Text>
+            <Text style={styles.trustedSubtitle}>Win together, lose together.</Text>
+            {trustedProfiles.length === 0 ? (
+              <Card style={styles.trustedEmpty}>
+                <Text style={styles.trustedEmptyEmoji}>👥</Text>
+                <Text style={styles.trustedEmptyText}>No one in your network yet</Text>
+                <Text style={styles.trustedEmptyHint}>Add people you trust — you share rewards and penalties as a group.</Text>
+              </Card>
+            ) : (
+              <View style={styles.trustedGrid}>
+                {trustedProfiles.map((profile) => (
+                  <Card key={profile.id} style={styles.trustedCard}>
+                    <View style={styles.trustedAvatar}>
+                      <Text style={styles.trustedAvatarText}>{profile.initial}</Text>
                     </View>
-                    <Text style={styles.winnerName}>{winner.name}</Text>
-                    <View style={styles.winnerAmountBadge}>
-                       <Text style={styles.winnerAmountText}>{winner.amount}</Text>
-                    </View>
-                  </View>
-                  <Image 
-                    source={{ uri: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&w=400&q=80' }} 
-                    style={styles.winnerProof} 
-                  />
-                  <View style={styles.proofVerified}>
-                    <Text>✅ Verified</Text>
-                  </View>
-                  <Text style={styles.winnerLoc}>{winner.location}</Text>
-                </Card>
-              ))}
-            </ScrollView>
+                    <Text style={styles.trustedName}>{profile.name}</Text>
+                  </Card>
+                ))}
+              </View>
+            )}
           </View>
 
           <View style={{ height: 100 }} />
@@ -281,7 +257,22 @@ const styles = StyleSheet.create({
     ...Typography.body,
     color: 'rgba(255,255,255,0.8)',
     fontWeight: '700',
+  },
+  diamondsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginBottom: Spacing.lg,
+  },
+  diamondsValue: {
+    ...Typography.heading,
+    color: Colors.sunshine,
+    fontSize: 24,
+  },
+  diamondsLabel: {
+    color: 'rgba(255,255,255,0.9)',
+    fontSize: 16,
+    fontWeight: '600',
   },
   vaultFooter: {
     flexDirection: 'row',
@@ -412,144 +403,58 @@ const styles = StyleSheet.create({
     fontSize: 24,
     zIndex: 2,
   },
-  chestCard: {
-    marginBottom: Spacing.md,
-    padding: Spacing.md,
-  },
-  chestInfoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Spacing.md,
-  },
-  prizeImage: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    marginRight: Spacing.md,
-  },
-  chestDetails: {
-    flex: 1,
-  },
-  prizeTitle: {
-    ...Typography.heading,
-    fontSize: 18,
-    marginBottom: 4,
-  },
-  timerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  timerText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: Colors.primaryBright,
-    marginLeft: 4,
-  },
-  oddsCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 4,
-    borderColor: Colors.primaryBright,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  oddsText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: Colors.primaryDark,
-  },
-  oddsLabel: {
-    fontSize: 8,
-    fontWeight: '700',
-    color: Colors.textGray,
-  },
-  oddsProgress: {
-    backgroundColor: Colors.primaryBright,
-  },
-  chestButton: {
-    marginTop: 0,
-  },
-  addEntriesBtn: {
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    alignItems: 'center',
-  },
-  addEntriesText: {
+  trustedSubtitle: {
     fontSize: 14,
-    fontWeight: '900',
-    color: Colors.primaryDark,
+    color: Colors.textGray,
+    marginBottom: Spacing.md,
   },
-  winnersRow: {
-    marginHorizontal: -Spacing.md,
-    paddingLeft: Spacing.md,
+  trustedEmpty: {
+    alignItems: 'center',
+    padding: Spacing.xl,
   },
-  winnerCard: {
-    width: 200,
-    marginRight: Spacing.md,
-    padding: Spacing.sm,
+  trustedEmptyEmoji: {
+    fontSize: 40,
+    marginBottom: Spacing.md,
   },
-  winnerHeader: {
+  trustedEmptyText: {
+    ...Typography.body,
+    fontWeight: '700',
+    marginBottom: 8,
+  },
+  trustedEmptyHint: {
+    fontSize: 14,
+    color: Colors.textGray,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  trustedGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.md,
+  },
+  trustedCard: {
+    width: (width - Spacing.md * 2 - Spacing.md * 2) / 2,
+    minWidth: 100,
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  trustedAvatar: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.ivoryBlueLight,
+    justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  winnerAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#EFF6FF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 8,
+  trustedAvatarText: {
+    ...Typography.heading,
+    fontSize: 22,
+    color: Colors.ivoryBlueDark,
   },
-  winnerAvatarText: {
-    fontSize: 12,
-    fontWeight: '900',
-    color: Colors.primaryBright,
-  },
-  winnerName: {
-    fontSize: 12,
-    fontWeight: '800',
-    flex: 1,
-  },
-  winnerAmountBadge: {
-    backgroundColor: '#ECFDF5',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  winnerAmountText: {
-    fontSize: 10,
-    fontWeight: '900',
-    color: Colors.success,
-  },
-  winnerProof: {
-    width: '100%',
-    height: 100,
-    borderRadius: 12,
-    marginBottom: 8,
-  },
-  proofVerified: {
-    position: 'absolute',
-    bottom: 45,
-    right: 12,
-    backgroundColor: Colors.white,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    ...Shadows.card,
-  },
-  winnerLoc: {
-    fontSize: 10,
-    color: Colors.textGray,
-    fontWeight: '600',
+  trustedName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.ivoryBlueDark,
   },
 });

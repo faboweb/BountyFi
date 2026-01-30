@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { authStorage } from './storage';
 import { api } from '../api/client';
+import { API_CONFIG } from '../config/api';
 import { AuthResponse, User } from '../api/types';
 import { Wallet } from 'ethers';
 
@@ -30,13 +31,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const token = await authStorage.getToken();
       if (token) {
-        // Fetch user data
         const userData = await api.users.getMe();
         setUser(userData);
+      } else if (API_CONFIG.USE_MOCK_API) {
+        // Testing only: skip login, use stub user so we can test the app without signing in
+        const stubUser: User = {
+          id: 'test-user-id',
+          email: 'test@bountyfi.app',
+          wallet_address: '0x0000000000000000000000000000000000000000',
+          tickets: 247,
+          referral_code: 'TEST123',
+          validations_completed: 47,
+          accuracy_rate: 0.94,
+          diamonds: 12,
+          audit_fail_count: 0,
+          trusted_network_ids: [],
+        };
+        setUser(stubUser);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       await authStorage.clear();
+      if (API_CONFIG.USE_MOCK_API) {
+        // Still allow testing: set stub user so app is usable
+        setUser({
+          id: 'test-user-id',
+          email: 'test@bountyfi.app',
+          wallet_address: '0x0000000000000000000000000000000000000000',
+          tickets: 247,
+          referral_code: 'TEST123',
+          validations_completed: 47,
+          accuracy_rate: 0.94,
+          diamonds: 12,
+          audit_fail_count: 0,
+          trusted_network_ids: [],
+        });
+      }
     } finally {
       setIsLoading(false);
     }

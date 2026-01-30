@@ -1,49 +1,41 @@
 import * as React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Image } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  TouchableOpacity,
+  Dimensions,
+} from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
-import { Button } from '../../components/Button';
+import { Colors, Typography, Spacing, BorderRadius } from '../../theme/theme';
 
 export function DailyTaskCameraScreen() {
   const navigation = useNavigation();
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.cameraContainer}>
-        {/* Mock Camera View */}
-        <View style={styles.mockCamera}>
-          <Text style={styles.cameraEmoji}>📸</Text>
-          <Text style={styles.cameraInstruction}>Position the proof within the frame</Text>
-        </View>
-
-        {/* Overlays */}
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-            <Text style={styles.backText}>✕</Text>
-          </TouchableOpacity>
-          <View style={styles.hintBadge}>
-            <Text style={styles.hintText}>LIGHTING: GOOD ✅</Text>
-          </View>
-        </View>
-
-        <View style={styles.bottomOverlay}>
-          <View style={styles.shutterRow}>
-            <View style={styles.galleryPlaceholder} />
-            <TouchableOpacity style={styles.shutterOuter}>
-              <View style={styles.shutterInner} />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.flashButton}>
-              <Text style={{ fontSize: 24 }}>⚡</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+      {/* Camera viewfinder area */}
+      <View style={styles.cameraViewfinder}>
+        <View style={styles.viewfinderOverlay} />
+        <Text style={styles.cameraHint}>
+          📸 Center the area in the frame{'\n'}
+          Location (GPS) is recorded with your photo.
+        </Text>
+        <Text style={styles.cameraPlaceholder}>📷</Text>
       </View>
 
-      <View style={styles.instructionCard}>
-        <Text style={styles.instructionTitle}>PROOF OF CLEANUP</Text>
-        <Text style={styles.instructionText}>
-          Take a clear photo of the gathered waste at the location.
-        </Text>
+      {/* Controls */}
+      <View style={styles.cameraControls}>
+        <TouchableOpacity
+          activeOpacity={0.9}
+          style={styles.captureButton}
+          onPress={() => {}}
+        >
+          <View style={styles.captureButtonInner} />
+        </TouchableOpacity>
+
+        <Text style={styles.locationHint}>Make sure your location is enabled</Text>
       </View>
     </SafeAreaView>
   );
@@ -54,118 +46,67 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#000',
   },
-  cameraContainer: {
+  cameraViewfinder: {
     flex: 1,
+    minHeight: 400,
+    backgroundColor: '#1a1a1a',
+    justifyContent: 'center',
+    alignItems: 'center',
     position: 'relative',
   },
-  mockCamera: {
-    flex: 1,
-    backgroundColor: '#1F2937',
-    justifyContent: 'center',
-    alignItems: 'center',
+  viewfinderOverlay: {
+    position: 'absolute',
+    width: '80%',
+    height: '80%',
+    borderWidth: 3,
+    borderStyle: 'dashed',
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderRadius: 20,
   },
-  cameraEmoji: {
+  cameraHint: {
+    position: 'absolute',
+    top: 40,
+    left: '10%',
+    right: '10%',
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '600',
+    fontSize: 14,
+    color: Colors.white,
+    textAlign: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 20,
+  },
+  cameraPlaceholder: {
     fontSize: 80,
-    opacity: 0.3,
+    color: 'rgba(255, 255, 255, 0.3)',
   },
-  cameraInstruction: {
-    ...Typography.body,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 20,
+  cameraControls: {
+    padding: Spacing.lg,
+    backgroundColor: '#000',
   },
-  topBar: {
-    position: 'absolute',
-    top: Spacing.lg,
-    left: Spacing.lg,
-    right: Spacing.lg,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  backText: {
-    fontSize: 24,
-    color: Colors.white,
-    fontWeight: 'bold',
-  },
-  hintBadge: {
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: Spacing.md,
-    paddingVertical: 6,
-    borderRadius: BorderRadius.full,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  hintText: {
-    color: Colors.white,
-    fontSize: 10,
-    fontWeight: '800',
-  },
-  bottomOverlay: {
-    position: 'absolute',
-    bottom: Spacing.xl,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
-  shutterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    width: '100%',
-    justifyContent: 'space-evenly',
-  },
-  shutterOuter: {
+  captureButton: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    borderWidth: 4,
-    borderColor: Colors.white,
+    backgroundColor: Colors.white,
+    borderWidth: 6,
+    borderColor: Colors.ivoryBlue,
+    alignSelf: 'center',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  shutterInner: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: Colors.white,
+  captureButtonInner: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Colors.coral,
   },
-  galleryPlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
-    backgroundColor: 'rgba(255,255,255,0.1)',
-  },
-  flashButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  instructionCard: {
-    backgroundColor: Colors.white,
-    padding: Spacing.lg,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-  },
-  instructionTitle: {
-    ...Typography.heading,
-    fontSize: 14,
-    color: Colors.primaryDark,
-    marginBottom: 4,
-  },
-  instructionText: {
-    ...Typography.body,
-    fontSize: 14,
-    color: Colors.textGray,
+  locationHint: {
+    textAlign: 'center',
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginTop: Spacing.md,
+    fontSize: 13,
   },
 });
