@@ -1,16 +1,14 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabase';
-import { useAuth } from '../auth/context';
 
-export function useRealtime() {
-    const { user } = useAuth();
+export function useRealtime(userId?: string) {
     const queryClient = useQueryClient();
 
     useEffect(() => {
-        if (!user?.id) return;
+        if (!userId) return;
 
-        console.log('[Realtime] Setting up subscriptions for user:', user.id);
+        console.log('[Realtime] Setting up subscriptions for user:', userId);
 
         // 1. Listen for User Profile updates (Balance, Diamonds, Stats)
         const userSubscription = supabase
@@ -21,7 +19,7 @@ export function useRealtime() {
                     event: 'UPDATE',
                     schema: 'public',
                     table: 'users',
-                    filter: `id=eq.${user.id}`,
+                    filter: `id=eq.${userId}`,
                 },
                 (payload) => {
                     console.log('[Realtime] User update:', payload);
@@ -40,7 +38,7 @@ export function useRealtime() {
                     event: '*', // INSERT, UPDATE
                     schema: 'public',
                     table: 'submissions',
-                    filter: `user_id=eq.${user.id}`,
+                    filter: `user_id=eq.${userId}`,
                 },
                 (payload) => {
                     console.log('[Realtime] Submission update:', payload);
@@ -67,7 +65,7 @@ export function useRealtime() {
                 },
                 (payload) => {
                     // If the new submission is NOT mine, it's a potential task
-                    if (payload.new.user_id !== user.id) {
+                    if (payload.new.user_id !== userId) {
                         console.log('[Realtime] New task available to validate');
                         queryClient.invalidateQueries({ queryKey: ['submissions', 'pending'] });
                     }
@@ -81,5 +79,5 @@ export function useRealtime() {
             supabase.removeChannel(submissionSubscription);
             supabase.removeChannel(validatorSubscription);
         };
-    }, [user?.id, queryClient]);
+    }, [userId, queryClient]);
 }

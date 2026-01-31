@@ -7,6 +7,7 @@ import { AuthNavigator } from './src/navigation/AuthNavigator';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { StatusBar } from 'expo-status-bar';
 import { CDP_CONFIG } from './src/config/cdp';
+import { useRealtime } from './src/hooks/useRealtime';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -18,7 +19,10 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  
+  // Initialize Realtime subscriptions after AuthProvider is ready
+  useRealtime(user?.id);
 
   console.log('[AppContent] Authentication state:', { isAuthenticated, isLoading });
 
