@@ -17,24 +17,12 @@ import { useAuth } from '../../auth/context';
 
 export function AuthScreen() {
   const [email, setEmail] = useState('');
-  const [referralCode, setReferralCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { loginWithLocalKey, loginWithCoinbase, loginWithOAuth } = useAuth();
+  const { loginWithCoinbase, loginWithOAuth } = useAuth();
 
   const isExpoGo = Constants.appOwnership === 'expo';
 
-  const handleStart = async () => {
-    setIsLoading(true);
-    try {
-      const authResponse = await loginWithLocalKey(referralCode.trim() || undefined);
-      console.log('[AuthScreen] handleStart (Local Wallet) success:', authResponse);
-    } catch (error: unknown) {
-      console.error('[AuthScreen] handleStart (Local Wallet) failed:', error);
-      Alert.alert('Start failed', (error as Error).message || 'Could not initialize session.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+
 
   const handleCoinbaseLogin = async () => {
     if (!email.trim() || !email.includes('@')) {
@@ -44,7 +32,7 @@ export function AuthScreen() {
 
     setIsLoading(true);
     try {
-      await loginWithCoinbase(email.trim(), referralCode.trim() || undefined);
+      await loginWithCoinbase(email.trim());
     } catch (error: unknown) {
       console.error('[AuthScreen] handleCoinbaseLogin failed:', error);
       Alert.alert('Login failed', (error as Error).message || 'Could not sign in with Coinbase.');
@@ -56,7 +44,7 @@ export function AuthScreen() {
   const handleOAuthLogin = async (provider: 'google' | 'apple') => {
     setIsLoading(true);
     try {
-      await loginWithOAuth(provider, referralCode.trim() || undefined);
+      await loginWithOAuth(provider);
     } catch (error: unknown) {
       console.error(`[AuthScreen] handleOAuthLogin (${provider}) failed:`, error);
       Alert.alert('Login failed', (error as Error).message || `Could not sign in with ${provider}.`);
@@ -116,34 +104,10 @@ export function AuthScreen() {
               </>
             )}
 
-            <View style={styles.divider}>
-              <View style={styles.line} />
-              <Text style={styles.dividerText}>OR</Text>
-              <View style={styles.line} />
-            </View>
 
-            <Text style={styles.label}>Referral code (optional)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Enter referral code"
-              value={referralCode}
-              onChangeText={setReferralCode}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              editable={!isLoading}
-            />
-
-            <TouchableOpacity
-              style={[styles.button, styles.ghostButton, isLoading && styles.buttonDisabled]}
-              onPress={handleStart}
-              disabled={isLoading}
-            >
-              <Text style={styles.ghostButtonText}>Start with Guest Wallet</Text>
-            </TouchableOpacity>
-            
             <Text style={styles.hint}>
               {isExpoGo 
-                ? "Safe Mode: Social login hidden for Expo Go. Use email or guest wallet."
+                ? "Safe Mode: Social login hidden for Expo Go. Use email to sign in."
                 : "Securely sign in using Coinbase CDP Embedded Wallets."}
             </Text>
           </View>
@@ -223,16 +187,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  ghostButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 1,
-    borderColor: '#0052FF',
-  },
-  ghostButtonText: {
-    color: '#0052FF',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
