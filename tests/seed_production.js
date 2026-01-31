@@ -1,10 +1,6 @@
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
+const { supabase, SUPABASE_URL } = require('./utils/supabase');
 
-const URL = 'https://cguqjaoeleifeaxktmwv.supabase.co';
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-const supabase = createClient(URL, KEY.trim());
+console.log(`Connected to: ${SUPABASE_URL}`);
 
 async function seed() {
   console.log("🌱 Seeding production campaign...");

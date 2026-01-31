@@ -1,12 +1,8 @@
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
+const { supabase, SUPABASE_URL: URL } = require('./utils/supabase');
 const fs = require('fs');
 const path = require('path');
 
-const URL = 'https://cguqjaoeleifeaxktmwv.supabase.co';
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY.trim();
-
-const supabase = createClient(URL, KEY);
+console.log(`Connected to: ${URL}`);
 
 async function runRealTest() {
   console.log("🚀 Testing Livepeer AI with Real Photos (Table Cleanup)...\n");

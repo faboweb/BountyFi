@@ -10,8 +10,10 @@ import {
   Share,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import Constants from 'expo-constants';
 import * as Location from 'expo-location';
+import { api } from '../../api/client';
 import { Button } from '../../components';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 
@@ -27,6 +29,7 @@ type Step = 1 | 2;
 
 export function StartCampaignScreen() {
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
   const [step, setStep] = useState<Step>(1);
 
   // Step 1
@@ -87,11 +90,32 @@ export function StartCampaignScreen() {
 
     setIsSubmitting(true);
     try {
-      // TODO: API – create campaign with step 1 data + first donation
-      await new Promise((r) => setTimeout(r, 800));
+      if (!pin) throw new Error('Location not set');
+      
+      const campaignData = {
+        title: name,
+        description: description,
+        prize_total: amount,
+        min_funding_thb: MIN_DONATION_THB,
+        requires_face_recognition: false, // Default for now
+        start_date: new Date().toISOString(),
+        end_date: new Date(Date.now() + (parseInt(durationDays, 10) || 7) * 24 * 60 * 60 * 1000).toISOString(),
+        checkpoints: [
+          {
+            name: locationName || 'Main Location',
+            lat: pin.latitude,
+            lng: pin.longitude,
+            radius: 50, // Default radius
+          }
+        ],
+      };
+
+      await api.campaigns.create(campaignData);
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
       setCreated(true);
-    } catch (e) {
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+    } catch (e: any) {
+      console.error('Failed to create campaign:', e);
+      Alert.alert('Error', e.message || 'Something went wrong. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

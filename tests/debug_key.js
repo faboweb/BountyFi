@@ -1,19 +1,7 @@
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
-
-// Production URL
-const URL = 'https://cguqjaoeleifeaxktmwv.supabase.co';
-const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!KEY) {
-    console.error("No key in .env");
-    process.exit(1);
-}
+const { supabase, SUPABASE_URL: URL, SERVICE_KEY: KEY } = require('./utils/supabase');
 
 console.log(`Testing connection to ${URL}`);
-console.log(`Key start: ${KEY.substring(0,10)}...`);
-
-const supabase = createClient(URL, KEY.trim());
+console.log(`Key start: ${KEY ? KEY.substring(0,10) : 'MISSING'}...`);
 
 async function test() {
   const { data, error } = await supabase.from('campaigns').select('count(*)');

@@ -1,19 +1,5 @@
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
-
-// Production Project: cguqjaoeleifeaxktmwv
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cguqjaoeleifeaxktmwv.supabase.co';
-
-const rawKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!rawKey) {
-  console.error("Missing SUPABASE_SERVICE_ROLE_KEY in .env");
-  process.exit(1);
-}
-
-const SERVICE_KEY = rawKey.trim();
-console.log(`Loaded Key: ${SERVICE_KEY.substring(0, 10)}...${SERVICE_KEY.substring(SERVICE_KEY.length - 5)} (Length: ${SERVICE_KEY.length})`);
-
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+const { supabase, SUPABASE_URL } = require('./utils/supabase');
+console.log(`Connected to: ${SUPABASE_URL}`);
 
 // Mock data based on seed.sql
 // Checkpoint: North Gate: 40.7968, -73.9580, radius 50
