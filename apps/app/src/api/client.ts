@@ -8,6 +8,7 @@ import {
   Campaign,
   Submission,
   User,
+  UserSearchResult,
   LeaderboardEntry,
   Lottery,
   LoginRequest,
@@ -215,6 +216,20 @@ export const usersApi = {
 
     if (error) throw error;
     return data as User;
+  },
+
+  async searchByUsername(username: string): Promise<UserSearchResult | null> {
+    const response = await apiClient.get<UserSearchResult | null>(`/users/search?username=${encodeURIComponent(username)}`);
+    return response.data;
+  },
+
+  async listDiscoverableUsers(): Promise<UserSearchResult[]> {
+    const response = await apiClient.get<UserSearchResult[]>('/users/discoverable');
+    return response.data;
+  },
+
+  async addTrustedMember(userId: string): Promise<void> {
+    await apiClient.post('/users/me/trusted-network', { user_id: userId });
   },
 
   async addDiamonds(amount: number): Promise<void> {

@@ -17,6 +17,14 @@ export interface User {
   trusted_network_ids?: string[];
 }
 
+/** Result of searching for a user by username (for adding to team) */
+export interface UserSearchResult {
+  id: string;
+  username?: string;
+  email?: string;
+  name?: string;
+}
+
 /** Community quest type: uniserv_cleanup = one-day, before+after; no_burn = 3 months, one photo daily; ban_plastic = selfie + plastic replacement photo (Chiang Mai) */
 export type QuestType = 'uniserv_cleanup' | 'no_burn' | 'ban_plastic';
 

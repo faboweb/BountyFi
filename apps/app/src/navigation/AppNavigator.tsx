@@ -1,8 +1,9 @@
 import * as React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { View, Text, StyleSheet } from 'react-native';
+import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
-import { Colors, Typography, BorderRadius, Spacing } from '../theme/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../theme/theme';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CampaignsScreen } from '../features/campaigns/CampaignsScreen';
 import { CampaignDetailScreen } from '../features/campaigns/CampaignDetailScreen';
@@ -27,6 +28,8 @@ import { TreasureWalletScreen } from '../features/wallet/TreasureWalletScreen';
 import { RedeemChallengesScreen } from '../features/wallet/RedeemChallengesScreen';
 import { PlayTicketResultScreen } from '../features/wallet/PlayTicketResultScreen';
 import { RewardsCelebrationScreen } from '../features/rewards/RewardsCelebrationScreen';
+import { TeamScreen } from '../features/team/TeamScreen';
+import { AddTeamMemberScreen } from '../features/team/AddTeamMemberScreen';
 
 export type AppStackParamList = {
   DonateHome: undefined;
@@ -50,77 +53,30 @@ export type AppStackParamList = {
   RedeemChallenges: undefined;
   PlayTicketResult: { won: boolean; prize?: string; emoji?: string; challengeName: string };
   RewardsCelebration: { total?: number; balance?: number; breakdown?: { label: string; value: string }[] } | undefined;
+  AddTeamMember: undefined;
 };
 
 export type TabParamList = {
   QuestsTab: undefined;
   DonateTab: undefined;
   ValidateTab: undefined;
-  WalletTab: undefined;
+  TeamTab: undefined;
   ProfileTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
-const TAB_ICON_SIZE = 22;
-const tabIconStyle = { fontSize: TAB_ICON_SIZE };
+const TAB_BAR_HEIGHT = 67;
+const TAB_ICON_SIZE = 32;
+const TAB_ICON_SIZE_ROUND = 28;
+const TABS_OFFSET_UP = 4;
 
-function TabIcon({ color, emoji }: { color: string; emoji: string }) {
-  return <Text style={[tabIconStyle, { color }]}>{emoji}</Text>;
-}
-
-function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
-  const activeColor = Colors.white;
-  const inactiveColor = Colors.textGray;
+function CustomTabBar(props: BottomTabBarProps) {
   return (
-    <View style={styles.tabBarStyle}>
-      <View style={styles.tabBarRow}>
-        {state.routes.map((route, index) => {
-          const { options } = descriptors[route.key];
-          const focused = state.index === index;
-          const labelText = options.title ?? route.name;
-          const iconColor = focused ? activeColor : inactiveColor;
-          const onPress = () => {
-            const event = navigation.emit({
-              type: 'tabPress',
-              target: route.key,
-              canPreventDefault: true,
-            });
-            if (!event.defaultPrevented) {
-              navigation.navigate(route.name, route.params);
-            }
-          };
-          return (
-            <TouchableOpacity
-              key={route.key}
-              accessibilityRole="button"
-              accessibilityState={focused ? { selected: true } : {}}
-              accessibilityLabel={options.tabBarAccessibilityLabel ?? labelText}
-              onPress={onPress}
-              style={styles.tabButton}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.tabItemInner, focused && styles.tabItemInnerActive]}>
-                {options.tabBarIcon?.({
-                  focused,
-                  color: iconColor,
-                  size: TAB_ICON_SIZE,
-                })}
-                <Text
-                  style={[
-                    styles.tabLabel,
-                    { color: iconColor },
-                    focused && styles.tabLabelActive,
-                  ]}
-                  numberOfLines={1}
-                >
-                  {labelText}
-                </Text>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+    <View style={styles.tabBarOuter}>
+      <View style={styles.tabBarContentWrap}>
+        <BottomTabBar {...props} />
       </View>
     </View>
   );
@@ -153,9 +109,11 @@ function QuestsStack() {
   );
 }
 
-function WalletStack() {
+function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
       <Stack.Screen name="Lootbox" component={LootboxScreen} />
       <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
@@ -165,54 +123,26 @@ function WalletStack() {
   );
 }
 
-const styles = StyleSheet.create({
-  tabLabel: {
-    fontSize: 11,
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '500',
-    marginTop: 2,
-  },
-  tabLabelActive: {
-    fontWeight: '700',
-  },
-  tabBarStyle: {
-    backgroundColor: Colors.white,
-    borderTopWidth: 1,
-    borderTopColor: Colors.creamDark,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
-    paddingHorizontal: Spacing.xs,
-  },
-  tabBarRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-around',
-  },
-  tabButton: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabItemInner: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: BorderRadius.full,
-    minWidth: 56,
-  },
-  tabItemInnerActive: {
-    backgroundColor: Colors.ivoryBlue,
-  },
-});
+function TeamStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Team" component={TeamScreen} />
+      <Stack.Screen name="AddTeamMember" component={AddTeamMemberScreen} />
+    </Stack.Navigator>
+  );
+}
 
 export function AppNavigator() {
   return (
     <Tab.Navigator
-      tabBar={(props) => <CustomTabBar {...props} />}
+      tabBar={(p) => <CustomTabBar {...p} />}
       screenOptions={{
         headerShown: false,
-        tabBarInactiveTintColor: Colors.textGray,
+        tabBarActiveTintColor: Colors.ivoryBlue,
+        tabBarInactiveTintColor: '#999999',
+        tabBarStyle: styles.tabBar,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
       <Tab.Screen
@@ -220,8 +150,9 @@ export function AppNavigator() {
         component={QuestsStack}
         options={{
           title: 'Quests',
-          tabBarActiveTintColor: Colors.ivoryBlue,
-          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="🏴" />,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -229,8 +160,11 @@ export function AppNavigator() {
         component={DonateStack}
         options={{
           title: 'Donate',
-          tabBarActiveTintColor: Colors.ivoryBlue,
-          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="💝" />,
+          tabBarIcon: ({ focused, color }) => (
+            <View style={styles.tabIconWrap}>
+              <Ionicons name={focused ? 'heart' : 'heart-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+            </View>
+          ),
         }}
       />
       <Tab.Screen
@@ -238,29 +172,68 @@ export function AppNavigator() {
         component={ValidateQueueScreen}
         options={{
           title: 'Verify',
-          tabBarActiveTintColor: Colors.ivoryBlue,
-          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="☑️" />,
+          tabBarIcon: ({ focused, color }) => (
+            <View style={styles.tabIconWrap}>
+              <Ionicons name={focused ? 'checkmark-circle' : 'checkmark-circle-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+            </View>
+          ),
         }}
       />
       <Tab.Screen
-        name="WalletTab"
-        component={WalletStack}
+        name="TeamTab"
+        component={TeamStack}
         options={{
-          title: 'Wallet',
-          tabBarActiveTintColor: Colors.ivoryBlue,
-          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="💰" />,
+          title: 'Team',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+          ),
         }}
-        initialParams={{ screen: 'TreasureWallet' } as any}
       />
       <Tab.Screen
         name="ProfileTab"
-        component={ProfileScreen}
+        component={ProfileStack}
         options={{
           title: 'Profile',
-          tabBarActiveTintColor: Colors.ivoryBlue,
-          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="😊" />,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+          ),
         }}
       />
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBarOuter: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+    paddingTop: 10,
+    paddingBottom: 20,
+    overflow: 'visible',
+  },
+  tabBarContentWrap: {
+    overflow: 'visible',
+  },
+  tabBar: {
+    backgroundColor: 'transparent',
+    borderTopWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    height: TAB_BAR_HEIGHT,
+    paddingTop: 10,
+    paddingBottom: 14,
+    overflow: 'visible',
+    marginTop: -TABS_OFFSET_UP,
+  },
+  tabIconWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'visible',
+  },
+  tabBarLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+});

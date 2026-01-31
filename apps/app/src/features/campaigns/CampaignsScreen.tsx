@@ -15,10 +15,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../navigation/AppNavigator';
+import { useAuth } from '../../auth/context';
 import { api } from '../../api/client';
 import type { Campaign } from '../../api/types';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
-import { useAuth } from '../../auth/context';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 

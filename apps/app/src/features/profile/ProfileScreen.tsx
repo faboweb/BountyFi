@@ -11,6 +11,8 @@ import {
   SafeAreaView,
   Animated,
 } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../auth/context';
 import { api } from '../../api/client';
@@ -18,8 +20,12 @@ import { formatWalletAddress } from '../../utils/image';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Card } from '../../components/Card';
 import { Badge } from '../../components/Badge';
+import { AppStackParamList } from '../../navigation/AppNavigator';
+
+type NavigationProp = NativeStackNavigationProp<AppStackParamList, 'Profile'>;
 
 export function ProfileScreen() {
+  const navigation = useNavigation<NavigationProp>();
   const { user, logout } = useAuth();
   const avatarPulse = React.useRef(new Animated.Value(1)).current;
   React.useEffect(() => {
@@ -122,6 +128,11 @@ export function ProfileScreen() {
           </View>
 
           <View style={styles.menuSection}>
+            <TouchableOpacity style={styles.menuItem} onPress={() => navigation.navigate('TreasureWallet')}>
+              <Text style={styles.menuIcon}>💰</Text>
+              <Text style={styles.menuText}>Wallet</Text>
+              <Text style={styles.menuArrow}>→</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.menuItem}>
               <Text style={styles.menuIcon}>👤</Text>
               <Text style={styles.menuText}>Personal Information</Text>

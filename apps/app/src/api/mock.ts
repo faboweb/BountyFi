@@ -5,6 +5,7 @@ import {
   Campaign,
   Submission,
   User,
+  UserSearchResult,
   LeaderboardEntry,
   Lottery,
   LoginRequest,
@@ -13,7 +14,6 @@ import {
   ValidationRequest,
   LoginWithWalletRequest,
   ReferralApplyRequest,
-
   ReferralCode,
   ShareCardResponse,
   FaceVerificationEnrollRequest,
@@ -213,11 +213,45 @@ export const mockValidationsApi = {
   },
 };
 
+// Discoverable users for search / "contacts on BountyFi" (mock)
+const MOCK_DISCOVERABLE_USERS: UserSearchResult[] = [
+  { id: 'user_2', username: 'jordan', email: 'jordan@example.com', name: 'Jordan' },
+  { id: 'user_3', username: 'sam', email: 'sam@example.com', name: 'Sam' },
+  { id: 'user_4', username: 'alex_l', email: 'alex.l@example.com', name: 'Alex L.' },
+  { id: 'user_5', username: 'morgan', email: 'morgan@example.com', name: 'Morgan' },
+  { id: 'user_6', username: 'casey', email: 'casey@example.com', name: 'Casey' },
+];
+
 // Users API – jury diamonds and audit penalties
 export const mockUsers = {
   async getMe(): Promise<User> {
     await delay(API_CONFIG.MOCK_DELAY);
     return { ...MOCK_USER };
+  },
+
+  async searchByUsername(username: string): Promise<UserSearchResult | null> {
+    await delay(API_CONFIG.MOCK_DELAY);
+    const q = username.trim().toLowerCase();
+    if (!q) return null;
+    const found = MOCK_DISCOVERABLE_USERS.find(
+      (u) =>
+        u.username?.toLowerCase().includes(q) ||
+        u.email?.toLowerCase().includes(q) ||
+        u.name?.toLowerCase().includes(q)
+    );
+    return found ?? null;
+  },
+
+  async listDiscoverableUsers(): Promise<UserSearchResult[]> {
+    await delay(API_CONFIG.MOCK_DELAY);
+    return [...MOCK_DISCOVERABLE_USERS];
+  },
+
+  async addTrustedMember(userId: string): Promise<void> {
+    await delay(API_CONFIG.MOCK_DELAY);
+    const ids = MOCK_USER.trusted_network_ids ?? [];
+    if (ids.includes(userId)) return;
+    MOCK_USER.trusted_network_ids = [...ids, userId];
   },
 
   /** +1 diamond per correct verification */
