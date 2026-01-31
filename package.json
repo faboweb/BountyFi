@@ -7,7 +7,8 @@
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "test:e2e": "NODE_ENV=test ls tests/*.test.js | xargs -n 1 node"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.93.2",

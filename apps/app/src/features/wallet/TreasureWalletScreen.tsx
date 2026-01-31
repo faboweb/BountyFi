@@ -27,6 +27,17 @@ export function TreasureWalletScreen() {
     queryKey: ['user', 'me'],
     queryFn: () => api.users.getMe(),
   });
+
+  const { data: earnings24h } = useQuery({
+    queryKey: ['user', 'earnings', '24h'],
+    queryFn: () => api.users.getEarnings24h(),
+  });
+
+  const { data: leaderboard } = useQuery({
+    queryKey: ['leaderboard'],
+    queryFn: () => api.leaderboard.get(),
+  });
+
   const trustedIds = user?.trusted_network_ids ?? [];
   const trustedProfiles = trustedIds.map((id: string) => ({
     id,
@@ -78,8 +89,8 @@ export function TreasureWalletScreen() {
               <View style={styles.earnedToday}>
                 <View style={styles.plusIcon}><Text style={{ color: Colors.white }}>+</Text></View>
                 <View>
-                  <Text style={styles.earnedText}>+350</Text>
-                  <Text style={styles.earnedLabel}>Earned Today</Text>
+                  <Text style={styles.earnedText}>+{earnings24h ?? 0}</Text>
+                  <Text style={styles.earnedLabel}>Earned Today (24h)</Text>
                 </View>
               </View>
               <TouchableOpacity
@@ -105,41 +116,53 @@ export function TreasureWalletScreen() {
               {/* 2nd */}
               <View style={styles.leaderItem}>
                 <View style={[styles.avatarCircle, { borderColor: '#E5E7EB' }]}>
-                  <Text style={styles.avatarText}>SJ</Text>
+                  <Text style={styles.avatarText}>
+                    {leaderboard?.[1]?.wallet_address?.slice(2, 4).toUpperCase() ?? '??'}
+                  </Text>
                   <View style={[styles.rankBadge, { backgroundColor: '#B0B0B0' }]}>
                     <Text style={styles.rankText}>2nd</Text>
                   </View>
                 </View>
-                <View style={styles.leaderBar} />
-                <Text style={styles.leaderVal}>8.2k</Text>
-                <Text style={styles.leaderName}>Sarah J.</Text>
+                <View style={[styles.leaderBar, { height: 70 }]} />
+                <Text style={styles.leaderVal}>{leaderboard?.[1]?.tickets ?? 0}</Text>
+                <Text style={styles.leaderName} numberOfLines={1}>
+                  {leaderboard?.[1]?.wallet_address ? `${leaderboard[1].wallet_address.slice(0, 6)}...` : 'Nobody'}
+                </Text>
               </View>
 
               {/* 1st */}
               <View style={[styles.leaderItem, styles.firstPlace]}>
                 <View style={[styles.avatarCircle, { width: 70, height: 70, borderColor: Colors.accentGold }]}>
                   <Text style={styles.crown}>👑</Text>
-                  <Text style={[styles.avatarText, { fontSize: 24 }]}>MK</Text>
+                  <Text style={[styles.avatarText, { fontSize: 24 }]}>
+                    {leaderboard?.[0]?.wallet_address?.slice(2, 4).toUpperCase() ?? '??'}
+                  </Text>
                   <View style={[styles.rankBadge, { backgroundColor: Colors.accentGold }]}>
                     <Text style={styles.rankText}>1st</Text>
                   </View>
                 </View>
                 <View style={[styles.leaderBar, { backgroundColor: '#FFF9C4', height: 100 }]} />
-                <Text style={[styles.leaderVal, { color: Colors.accentGoldDeep }]}>12.5k</Text>
-                <Text style={[styles.leaderName, { color: Colors.primaryBright }]}>Mike K.</Text>
+                <Text style={[styles.leaderVal, { color: Colors.accentGoldDeep }]}>{leaderboard?.[0]?.tickets ?? 0}</Text>
+                <Text style={[styles.leaderName, { color: Colors.primaryBright }]} numberOfLines={1}>
+                  {leaderboard?.[0]?.wallet_address ? `${leaderboard[0].wallet_address.slice(0, 6)}...` : 'Nobody'}
+                </Text>
               </View>
 
               {/* 3rd */}
               <View style={styles.leaderItem}>
                 <View style={[styles.avatarCircle, { borderColor: '#FFCCBC' }]}>
-                  <Text style={styles.avatarText}>AL</Text>
+                  <Text style={styles.avatarText}>
+                    {leaderboard?.[2]?.wallet_address?.slice(2, 4).toUpperCase() ?? '??'}
+                  </Text>
                   <View style={[styles.rankBadge, { backgroundColor: '#FF8A65' }]}>
                     <Text style={styles.rankText}>3rd</Text>
                   </View>
                 </View>
-                <View style={[styles.leaderBar, { backgroundColor: '#FFF3E0' }]} />
-                <Text style={styles.leaderVal}>5.1k</Text>
-                <Text style={styles.leaderName}>Alex L.</Text>
+                <View style={[styles.leaderBar, { backgroundColor: '#FFF3E0', height: 50 }]} />
+                <Text style={styles.leaderVal}>{leaderboard?.[2]?.tickets ?? 0}</Text>
+                <Text style={styles.leaderName} numberOfLines={1}>
+                  {leaderboard?.[2]?.wallet_address ? `${leaderboard[2].wallet_address.slice(0, 6)}...` : 'Nobody'}
+                </Text>
               </View>
             </View>
           </View>

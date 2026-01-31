@@ -89,7 +89,7 @@ export function CampaignDetailScreen() {
         {checkpoints.length > 0 && (
           <View style={styles.checkpointList}>
             <Text style={styles.checkpointListTitle}>Checkpoints</Text>
-            {checkpoints.map((cp, index) => (
+            {checkpoints.map((cp: { id: string; name?: string; radius: number }, index: number) => (
               <View key={cp.id} style={styles.checkpointItem}>
                 <LinearGradient
                   colors={[Colors.ivoryBlue, Colors.ivoryBlueLight]}
@@ -113,7 +113,7 @@ export function CampaignDetailScreen() {
           <Text style={styles.prizeChestTitle}>🎁 Prize chest</Text>
           {campaign.prize_chest && campaign.prize_chest.length > 0 ? (
             <View style={styles.prizeList}>
-              {campaign.prize_chest.map((prize, index) => (
+              {campaign.prize_chest.map((prize: { label: string; emoji: string }, index: number) => (
                 <View key={index} style={styles.prizeRow}>
                   <Text style={styles.prizeEmoji}>{prize.emoji}</Text>
                   <Text style={styles.prizeLabel}>{prize.label}</Text>
@@ -132,7 +132,7 @@ export function CampaignDetailScreen() {
           <View style={styles.sponsoredByCard}>
             <Text style={styles.sponsoredByTitle}>Sponsored by</Text>
             <View style={styles.sponsorList}>
-              {campaign.sponsors.map((sponsor, index) => (
+              {campaign.sponsors.map((sponsor: { name: string; type?: string }, index: number) => (
                 <View key={index} style={styles.sponsorRow}>
                   <Text style={styles.sponsorName}>{sponsor.name}</Text>
                   {sponsor.type && (

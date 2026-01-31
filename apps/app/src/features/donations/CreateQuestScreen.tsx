@@ -17,8 +17,10 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useQueryClient } from '@tanstack/react-query';
 import * as Location from 'expo-location';
 import { AppStackParamList } from '../../navigation/AppNavigator';
+import { api } from '../../api/client';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Button } from '../../components/Button';
 import { CameraCapture } from '../../components/CameraCapture';
@@ -54,6 +56,7 @@ type NavigationProp = NativeStackNavigationProp<AppStackParamList, 'CreateQuest'
 
 export function CreateQuestScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const queryClient = useQueryClient();
   const [name, setName] = React.useState('');
   const [location, setLocation] = React.useState('');
   const [pin, setPin] = React.useState<{ latitude: number; longitude: number } | null>(null);
@@ -154,7 +157,7 @@ export function CreateQuestScreen() {
     hasGoodsPhoto &&
     donationNum >= MIN_DONATION_THB;
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!hasPin) {
       Alert.alert('Location', 'Set a pin on the map or use "Use my location".');
       return;
@@ -183,8 +186,40 @@ export function CreateQuestScreen() {
       Alert.alert('Missing fields', 'Please fill in quest name, location, radius, details & goals, and all donation fields (company, brand photo, goods, goods photo, amount).');
       return;
     }
-    setCreatedQuestTitle(name.trim());
-    setCreated(true);
+
+    try {
+      const campaignData = {
+        title: name.trim(),
+        description: detailsGoals.trim(),
+        prize_total: donationNum,
+        min_funding_thb: MIN_DONATION_THB,
+        requires_face_recognition: true, // Quest screen focuses on face recognition/higher security
+        start_date: new Date().toISOString(),
+        end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days default
+        checkpoints: [
+          {
+            name: location.trim(),
+            lat: pin!.latitude,
+            lng: pin!.longitude,
+            radius: parseInt(radius, 10) || 100,
+          }
+        ],
+        sponsors: [
+          {
+            name: companyName.trim(),
+            type: 'company' as const,
+          }
+        ],
+      };
+
+      await api.campaigns.create(campaignData);
+      setCreatedQuestTitle(name.trim());
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      setCreated(true);
+    } catch (e: any) {
+      console.error('Failed to create quest:', e);
+      Alert.alert('Error', e.message || 'Something went wrong. Please try again.');
+    }
   };
 
   const handleShare = async () => {

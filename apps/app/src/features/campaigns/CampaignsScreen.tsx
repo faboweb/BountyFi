@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Animated,
   Dimensions,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
@@ -53,10 +54,18 @@ export function CampaignsScreen() {
     setTimeout(smileLoop, 600);
   }, [smileScale, smileOpacity]);
 
-  const { data: campaigns, isLoading } = useQuery({
+  const { data: campaigns, isLoading, refetch } = useQuery({
     queryKey: ['campaigns'],
     queryFn: () => api.campaigns.getAll(),
   });
+
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    await refetch();
+    setRefreshing(false);
+  }, [refetch]);
 
   const renderHeader = () => (
     <View style={styles.headerContainer}>
@@ -118,7 +127,7 @@ export function CampaignsScreen() {
 
   // Surface community quests: Uniserv CMU Cleanup and No burning first (incentives + deterrence, low gameability)
   const raw = campaigns ?? [];
-  const listData = [...raw].sort((a, b) => {
+  const listData = [...raw].sort((a: Campaign, b: Campaign) => {
     const order = (c: Campaign) =>
       c.quest_type === 'uniserv_cleanup' ? 0 : c.quest_type === 'no_burn' ? 1 : c.quest_type === 'ban_plastic' ? 2 : 3;
     return order(a) - order(b);
@@ -128,11 +137,19 @@ export function CampaignsScreen() {
     <SafeAreaView style={styles.safeArea}>
       <FlatList
         data={listData}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item: Campaign) => item.id}
         ListHeaderComponent={renderHeader}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => {
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.ivoryBlue}
+            colors={[Colors.ivoryBlue]}
+          />
+        }
+        renderItem={({ item }: { item: Campaign }) => {
           const isCleanup = item.quest_type === 'uniserv_cleanup';
           const isNoBurn = item.quest_type === 'no_burn';
           const isBanPlastic = item.quest_type === 'ban_plastic';

@@ -1,7 +1,7 @@
 // Real API Client (for when backend is ready)
 import { API_CONFIG } from '../config/api';
 import axios, { AxiosInstance } from 'axios';
-import * as SecureStore from 'expo-secure-store';
+import { authStorage } from '../auth/storage';
 import { supabase } from '../utils/supabase';
 import {
   AuthResponse,
@@ -20,6 +20,7 @@ import {
   ShareCardResponse,
   FaceVerificationEnrollRequest,
   FaceVerificationStatusResponse,
+  CreateCampaignRequest,
 } from './types';
 
 // Create axios instance
@@ -28,12 +29,13 @@ const createApiClient = (): AxiosInstance => {
     baseURL: API_CONFIG.API_BASE_URL,
     headers: {
       'Content-Type': 'application/json',
+      'apikey': API_CONFIG.SUPABASE_PUBLISHABLE_KEY,
     },
   });
 
   // Add auth token to requests
   client.interceptors.request.use(async (config) => {
-    const token = await SecureStore.getItemAsync('auth_token');
+    const token = await authStorage.getToken();
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -46,7 +48,7 @@ const createApiClient = (): AxiosInstance => {
     async (error) => {
       if (error.response?.status === 401) {
         // Clear token and redirect to login
-        await SecureStore.deleteItemAsync('auth_token');
+        await authStorage.clear();
         // Navigation will be handled by auth context
       }
       return Promise.reject(error);
@@ -61,8 +63,20 @@ const apiClient = createApiClient();
 // Auth API – Coinbase only (no email)
 export const authApi = {
   async loginWithCoinbase(request: CoinbaseLoginRequest): Promise<AuthResponse> {
-    const response = await apiClient.post<AuthResponse>('/auth/coinbase', request);
-    return response.data;
+    // Call Supabase Edge Function
+    const { data, error } = await supabase.functions.invoke('verify_coinbase_token', {
+      body: { access_token: request.coinbase_access_token }
+    });
+
+    if (error) throw new Error(error.message || 'Coinbase verification failed');
+
+    // Return formatted response
+    return {
+      token: request.coinbase_access_token, // Use CDP token as session token
+      user_id: data.session.user_id,
+      wallet_address: request.wallet_address || data.session.wallet_address || '',
+      email: data.session.profile?.email || '',
+    };
   },
 
   async loginWithWallet(request: LoginWithWalletRequest): Promise<AuthResponse> {
@@ -75,13 +89,38 @@ export const authApi = {
 // Campaigns API
 export const campaignsApi = {
   async getAll(): Promise<Campaign[]> {
-    const response = await apiClient.get<Campaign[]>('/campaigns');
-    return response.data;
+    const { data, error } = await supabase
+      .from('campaigns')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as Campaign[];
   },
 
   async getById(id: string): Promise<Campaign> {
-    const response = await apiClient.get<Campaign>(`/campaigns/${id}`);
-    return response.data;
+    const { data, error } = await supabase
+      .from('campaigns')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data as Campaign;
+  },
+
+  async create(request: CreateCampaignRequest): Promise<Campaign> {
+    const { data, error } = await supabase
+      .from('campaigns')
+      .insert({
+        ...request,
+        status: request.status || 'active',
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data as Campaign;
   },
 };
 
@@ -121,13 +160,28 @@ export const submissionsApi = {
   },
 
   async getMy(): Promise<Submission[]> {
-    const response = await apiClient.get<Submission[]>('/submissions/my');
-    return response.data;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+
+    const { data, error } = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as Submission[];
   },
 
   async getById(id: string): Promise<Submission> {
-    const response = await apiClient.get<Submission>(`/submissions/${id}`);
-    return response.data;
+    const { data, error } = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+    return data as Submission;
   },
 };
 
@@ -150,12 +204,42 @@ export const validationsApi = {
 // Users API
 export const usersApi = {
   async getMe(): Promise<User> {
-    const response = await apiClient.get<User>('/users/me');
-    return response.data;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', user.id)
+      .single();
+
+    if (error) throw error;
+    return data as User;
   },
 
   async addDiamonds(amount: number): Promise<void> {
-    await apiClient.post('/users/jury/diamonds', { amount });
+    // This likely needs an Edge Function or DB update, but since it was a POST to /users/jury/diamonds
+    // we'll keep it as an RPC or direct update if permitted by RLS
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('Not authenticated');
+
+    const { error } = await supabase.rpc('increment_diamonds', { amount });
+    if (error) {
+      // Fallback to direct update if RPC doesn't exist (depends on DB schema)
+      console.warn('RPC increment_diamonds failed, trying direct update', error);
+      await apiClient.post('/users/jury/diamonds', { amount });
+    }
+  },
+
+  async getEarnings24h(): Promise<number> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return 0;
+    const { data, error } = await supabase.rpc('get_earnings_24h', { v_user_id: user.id });
+    if (error) {
+      console.error('Failed to get 24h earnings:', error);
+      return 0;
+    }
+    return data || 0;
   },
 
   async recordAuditPenalty(): Promise<{ diamonds_lost: number; trusted_network_lost_ticket: boolean }> {
@@ -167,8 +251,14 @@ export const usersApi = {
 // Leaderboard API
 export const leaderboardApi = {
   async get(): Promise<LeaderboardEntry[]> {
-    const response = await apiClient.get<LeaderboardEntry[]>('/leaderboard');
-    return response.data;
+    const { data, error } = await supabase
+      .from('leaderboard')
+      .select('*')
+      .order('rank', { ascending: true })
+      .limit(100);
+
+    if (error) throw error;
+    return (data || []) as LeaderboardEntry[];
   },
 };
 

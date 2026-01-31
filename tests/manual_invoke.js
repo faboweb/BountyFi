@@ -1,8 +1,6 @@
-const { createClient } = require('@supabase/supabase-js');
+const { supabase, SUPABASE_URL: URL, SERVICE_KEY: KEY } = require('./utils/supabase');
 
-const URL = 'http://127.0.0.1:54321';
-// Correct key from status output
-const KEY = 'eyJhbGciOiJFUzI1NiIsImtpZCI6ImI4MTI2OWYxLTIxZDgtNGYyZS1iNzE5LWMyMjQwYTg0MGQ5MCIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MjA4NDk1MDk4Nn0.uegu1QXkhG_V-rXpkkDAhXBnxRRsD4agRF0_e_igPVAY_K3hPwo-n8jM_6mzhmT6d7CjXqZQDbUjUG8u7yV-Ww';
+console.log(`Connected to: ${URL}`);
 
 console.log("Invoking verify_submission manually...");
 

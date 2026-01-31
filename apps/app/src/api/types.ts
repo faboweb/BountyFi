@@ -168,6 +168,21 @@ export interface ValidationRequest {
   vote: 'approve' | 'reject';
 }
 
+export interface CreateCampaignRequest {
+  title: string;
+  description: string;
+  prize_total: number;
+  min_funding_thb: number;
+  requires_face_recognition: boolean;
+  start_date: string; // ISO string
+  end_date: string;   // ISO string
+  checkpoints: Omit<Checkpoint, 'id'>[];
+  status?: 'active' | 'upcoming' | 'ended';
+  quest_type?: QuestType;
+  prize_chest?: { label: string; emoji: string }[];
+  sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
+}
+
 export interface ReferralApplyRequest {
   code: string;
 }

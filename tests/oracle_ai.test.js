@@ -1,17 +1,7 @@
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
+const { supabase, SUPABASE_URL } = require('./utils/supabase');
 const { ethers } = require('ethers');
 
-// Setup
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://cguqjaoeleifeaxktmwv.supabase.co';
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!SERVICE_KEY) {
-    console.error("Missing SUPABASE_SERVICE_ROLE_KEY");
-    process.exit(1);
-}
-
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+console.log(`Connected to: ${SUPABASE_URL}`);
 
 async function runTest() {
     console.log("🧪 Starting Oracle AI Integration Test (Live API)...");

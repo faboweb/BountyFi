@@ -1,10 +1,7 @@
-require('dotenv').config();
-const { createClient } = require('@supabase/supabase-js');
+const { supabase, SUPABASE_URL } = require('./utils/supabase');
 const { ethers } = require('ethers');
 
 // Config
-const SUPABASE_URL = process.env.SUPABASE_URL;
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RPC_URL = process.env.RPC_URL || "https://sepolia.base.org";
 const PRIVATE_KEY = process.env.PRIVATE_KEY; // User A (Submitter)
 const BOUNTYFI_ADDRESS = process.env.BOUNTYFI_ADDRESS;
@@ -14,12 +11,12 @@ const BOUNTYFI_ADDRESS = process.env.BOUNTYFI_ADDRESS;
 // Wait, `getValidationTask` is a view function but relies on `msg.sender`? No, it takes `address _validator` as arg.
 // Perfect.
 
-if (!SUPABASE_URL || !SERVICE_KEY || !PRIVATE_KEY || !BOUNTYFI_ADDRESS) {
+if (!SUPABASE_URL || !PRIVATE_KEY || !BOUNTYFI_ADDRESS) {
     console.error("❌ Missing Env Vars");
     process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
+console.log(`Connected to: ${SUPABASE_URL}`);
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const wrapperWallet = new ethers.Wallet(PRIVATE_KEY, provider); // Submitter
 
