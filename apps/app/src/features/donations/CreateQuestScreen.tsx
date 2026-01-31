@@ -63,13 +63,15 @@ function getDaysInMonth(year: number, month: number): (number | null)[] {
   return result;
 }
 
-export type QuestTypeId = 'check_in' | 'selfie_checkin' | 'simple_proof' | 'before_after_photo';
+export type QuestTypeId = 'selfie_checkin' | 'simple_proof' | 'before_after_photo' | 'video_proof' | 'written_reflection' | 'multiple_photos';
 
 const QUEST_TYPES: { id: QuestTypeId; label: string; description: string }[] = [
-  { id: 'check_in', label: 'Check-in', description: 'Participants check in at the location. No photo required.' },
   { id: 'selfie_checkin', label: 'Selfie check-in', description: 'Participants take a selfie at the location to prove they were there.' },
   { id: 'simple_proof', label: 'Simple proof', description: 'Participants submit a single photo as proof of completion.' },
   { id: 'before_after_photo', label: 'Before/after photo', description: 'Participants submit before and after photos to show the change (e.g. cleanup).' },
+  { id: 'video_proof', label: 'Video proof', description: 'Participants submit a short video as proof of completion.' },
+  { id: 'written_reflection', label: 'Written reflection', description: 'Participants write a short reflection or report about what they did.' },
+  { id: 'multiple_photos', label: 'Multiple photos', description: 'Participants submit several photos documenting the activity or result.' },
 ];
 
 const GOODS_HASHTAGS = [
@@ -95,10 +97,10 @@ export function CreateQuestScreen() {
   const navigation = useNavigation<NavigationProp>();
   const [step, setStep] = React.useState(1);
 
-  // Step 1
+  // Step 1 – multiple quest types allowed; selfie check-in is always included (mandatory)
   const [name, setName] = React.useState('');
   const [description, setDescription] = React.useState('');
-  const [questType, setQuestType] = React.useState<QuestTypeId | null>(null);
+  const [questTypes, setQuestTypes] = React.useState<Set<QuestTypeId>>(() => new Set(['selfie_checkin']));
   const [timeframeStart, setTimeframeStart] = React.useState('');
   const [timeframeEnd, setTimeframeEnd] = React.useState('');
   const [timeframeSelectMode, setTimeframeSelectMode] = React.useState<'start' | 'end'>('start');
@@ -138,6 +140,16 @@ export function CreateQuestScreen() {
 
   const toggleGoodsHashtag = (id: string) => {
     setGoodsHashtags((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleQuestType = (id: QuestTypeId) => {
+    if (id === 'selfie_checkin') return; // Selfie check-in is mandatory, cannot deselect
+    setQuestTypes((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -198,7 +210,7 @@ export function CreateQuestScreen() {
   const canProceedStep1 =
     name.trim().length > 0 &&
     description.trim().length > 0 &&
-    questType != null &&
+    questTypes.size >= 1 &&
     timeframeStart.trim().length > 0 &&
     timeframeEnd.trim().length > 0;
   const canProceedStep2 = location.trim().length > 0 && pin != null && radius.trim().length > 0 && parseInt(radius, 10) > 0;
@@ -216,7 +228,7 @@ export function CreateQuestScreen() {
 
   const handleNext = () => {
     if (step === 1 && !canProceedStep1) {
-      Alert.alert('Missing info', 'Please enter quest name, description, select a type, and set start and end dates.');
+      Alert.alert('Missing info', 'Please enter quest name, description, select at least one quest type, and set start and end dates.');
       return;
     }
     if (step === 2 && !canProceedStep2) {
@@ -323,16 +335,24 @@ export function CreateQuestScreen() {
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Quest type (requirements to start) *</Text>
-                <Text style={styles.inputHint}>Choose how participants will prove completion.</Text>
+                <Text style={styles.inputHint}>Selfie check-in is required. You can also require one or more proof types below.</Text>
                 {QUEST_TYPES.map((t) => (
                   <TouchableOpacity
                     key={t.id}
-                    style={[styles.typeCard, questType === t.id && styles.typeCardSelected]}
-                    onPress={() => setQuestType(t.id)}
+                    style={[
+                      styles.typeCard,
+                      questTypes.has(t.id) && styles.typeCardSelected,
+                      t.id === 'selfie_checkin' && styles.typeCardMandatory,
+                    ]}
+                    onPress={() => toggleQuestType(t.id)}
                     activeOpacity={0.8}
+                    disabled={t.id === 'selfie_checkin'}
                   >
-                    <Text style={[styles.typeLabel, questType === t.id && styles.typeLabelSelected]}>{t.label}</Text>
+                    <Text style={[styles.typeLabel, questTypes.has(t.id) && styles.typeLabelSelected]}>{t.label}</Text>
                     <Text style={styles.typeDescription}>{t.description}</Text>
+                    {t.id === 'selfie_checkin' && (
+                      <Text style={styles.typeBadge}>Required</Text>
+                    )}
                   </TouchableOpacity>
                 ))}
               </View>

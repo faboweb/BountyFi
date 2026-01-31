@@ -1,7 +1,6 @@
-import * as React from 'react';
+import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs';
-import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../theme/theme';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -54,6 +53,7 @@ export type AppStackParamList = {
   PlayTicketResult: { won: boolean; prize?: string; emoji?: string; challengeName: string };
   RewardsCelebration: { total?: number; balance?: number; breakdown?: { label: string; value: string }[] } | undefined;
   AddTeamMember: undefined;
+  Team: undefined;
 };
 
 export type TabParamList = {
@@ -72,7 +72,7 @@ const TAB_ICON_SIZE = 32;
 const TAB_ICON_SIZE_ROUND = 28;
 const TABS_OFFSET_UP = 4;
 
-function CustomTabBar(props: BottomTabBarProps) {
+function CustomTabBar(props: Parameters<typeof BottomTabBar>[0]) {
   return (
     <View style={styles.tabBarOuter}>
       <View style={styles.tabBarContentWrap}>
@@ -116,7 +116,6 @@ function ProfileStack() {
       <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
       <Stack.Screen name="Lootbox" component={LootboxScreen} />
-      <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
       <Stack.Screen name="RedeemChallenges" component={RedeemChallengesScreen} />
       <Stack.Screen name="PlayTicketResult" component={PlayTicketResultScreen} />
     </Stack.Navigator>

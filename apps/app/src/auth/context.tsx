@@ -336,7 +336,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) { /* ignore */ }
 
     setUser(null);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.location) {
       window.location.reload(); // Hard reload on Web to ensure SDK re-initializes
     }
   };
