@@ -42,14 +42,6 @@ const GOODS_HASHTAGS = [
   { id: 'others', label: '#others' },
 ] as const;
 
-let MapView: any = null;
-let Marker: any = null;
-try {
-  const RM = require('react-native-maps');
-  MapView = RM.default;
-  Marker = RM.Marker;
-} catch (_) {}
-
 type NavigationProp = NativeStackNavigationProp<AppStackParamList, 'CreateQuest'>;
 
 export function CreateQuestScreen() {
@@ -260,38 +252,18 @@ export function CreateQuestScreen() {
           <View style={styles.inputGroup}>
             <Text style={styles.inputLabel}>Location on map *</Text>
             <Text style={styles.inputHint}>Tap the map to add a pin.</Text>
-            {MapView && Marker ? (
-              <View style={styles.mapContainer}>
-                <MapView
-                  style={styles.map}
-                  region={region}
-                  onRegionChangeComplete={setRegion}
-                  onPress={handleMapPress}
-                  showsUserLocation
-                >
-                  {pin && (
-                    <Marker
-                      coordinate={pin}
-                      draggable
-                      onDragEnd={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => setPin(e.nativeEvent.coordinate)}
-                    />
-                  )}
-                </MapView>
-              </View>
-            ) : (
-              <View style={styles.mapPlaceholder}>
-                <Text style={styles.mapPlaceholderText}>Map (development build)</Text>
-                <TouchableOpacity style={styles.useLocationBtn} onPress={useMyLocation} disabled={locationLoading}>
-                  {locationLoading ? <ActivityIndicator size="small" color={Colors.ivoryBlue} /> : <Text style={styles.useLocationText}>Use my location</Text>}
-                </TouchableOpacity>
-                <Text style={styles.gpsHint}>Uses your device GPS, same as for photo proof.</Text>
-                {pin && (
-                  <Text style={styles.coordText}>
-                    Pin: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}
-                  </Text>
-                )}
-              </View>
-            )}
+            <View style={styles.mapPlaceholder}>
+              <Text style={styles.mapPlaceholderText}>Location (mock)</Text>
+              <TouchableOpacity style={styles.useLocationBtn} onPress={useMyLocation} disabled={locationLoading}>
+                {locationLoading ? <ActivityIndicator size="small" color={Colors.ivoryBlue} /> : <Text style={styles.useLocationText}>Use my location</Text>}
+              </TouchableOpacity>
+              <Text style={styles.gpsHint}>Uses your device GPS, same as for photo proof.</Text>
+              {pin && (
+                <Text style={styles.coordText}>
+                  Pin: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}
+                </Text>
+              )}
+            </View>
           </View>
 
           <View style={styles.inputGroup}>

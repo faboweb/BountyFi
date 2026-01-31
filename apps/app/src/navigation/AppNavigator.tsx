@@ -1,6 +1,8 @@
 import * as React from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Colors, Typography, BorderRadius, Spacing } from '../theme/theme';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CampaignsScreen } from '../features/campaigns/CampaignsScreen';
 import { CampaignDetailScreen } from '../features/campaigns/CampaignDetailScreen';
@@ -61,6 +63,69 @@ export type TabParamList = {
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
 
+const TAB_ICON_SIZE = 22;
+const tabIconStyle = { fontSize: TAB_ICON_SIZE };
+
+function TabIcon({ color, emoji }: { color: string; emoji: string }) {
+  return <Text style={[tabIconStyle, { color }]}>{emoji}</Text>;
+}
+
+function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+  const activeColor = Colors.white;
+  const inactiveColor = Colors.textGray;
+  return (
+    <View style={styles.tabBarStyle}>
+      <View style={styles.tabBarRow}>
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const focused = state.index === index;
+          const labelText = options.title ?? route.name;
+          const iconColor = focused ? activeColor : inactiveColor;
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            if (!event.defaultPrevented) {
+              navigation.navigate(route.name, route.params);
+            }
+          };
+          return (
+            <TouchableOpacity
+              key={route.key}
+              accessibilityRole="button"
+              accessibilityState={focused ? { selected: true } : {}}
+              accessibilityLabel={options.tabBarAccessibilityLabel ?? labelText}
+              onPress={onPress}
+              style={styles.tabButton}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.tabItemInner, focused && styles.tabItemInnerActive]}>
+                {options.tabBarIcon?.({
+                  focused,
+                  color: iconColor,
+                  size: TAB_ICON_SIZE,
+                })}
+                <Text
+                  style={[
+                    styles.tabLabel,
+                    { color: iconColor },
+                    focused && styles.tabLabelActive,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {labelText}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function DonateStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -100,13 +165,54 @@ function WalletStack() {
   );
 }
 
+const styles = StyleSheet.create({
+  tabLabel: {
+    fontSize: 11,
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  tabLabelActive: {
+    fontWeight: '700',
+  },
+  tabBarStyle: {
+    backgroundColor: Colors.white,
+    borderTopWidth: 1,
+    borderTopColor: Colors.creamDark,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === 'ios' ? 28 : 8,
+    paddingHorizontal: Spacing.xs,
+  },
+  tabBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tabItemInner: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: BorderRadius.full,
+    minWidth: 56,
+  },
+  tabItemInnerActive: {
+    backgroundColor: Colors.ivoryBlue,
+  },
+});
+
 export function AppNavigator() {
   return (
     <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#5B8DAF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarInactiveTintColor: Colors.textGray,
       }}
     >
       <Tab.Screen
@@ -114,7 +220,8 @@ export function AppNavigator() {
         component={QuestsStack}
         options={{
           title: 'Quests',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏴</Text>,
+          tabBarActiveTintColor: Colors.ivoryBlue,
+          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="🏴" />,
         }}
       />
       <Tab.Screen
@@ -122,7 +229,8 @@ export function AppNavigator() {
         component={DonateStack}
         options={{
           title: 'Donate',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💝</Text>,
+          tabBarActiveTintColor: Colors.ivoryBlue,
+          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="💝" />,
         }}
       />
       <Tab.Screen
@@ -130,7 +238,8 @@ export function AppNavigator() {
         component={ValidateQueueScreen}
         options={{
           title: 'Verify',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>☑️</Text>,
+          tabBarActiveTintColor: Colors.ivoryBlue,
+          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="☑️" />,
         }}
       />
       <Tab.Screen
@@ -138,7 +247,8 @@ export function AppNavigator() {
         component={WalletStack}
         options={{
           title: 'Wallet',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔲</Text>,
+          tabBarActiveTintColor: Colors.ivoryBlue,
+          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="💰" />,
         }}
         initialParams={{ screen: 'TreasureWallet' } as any}
       />
@@ -147,7 +257,8 @@ export function AppNavigator() {
         component={ProfileScreen}
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👤</Text>,
+          tabBarActiveTintColor: Colors.ivoryBlue,
+          tabBarIcon: ({ color }) => <TabIcon color={color} emoji="😊" />,
         }}
       />
     </Tab.Navigator>

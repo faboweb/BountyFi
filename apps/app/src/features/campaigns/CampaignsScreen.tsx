@@ -17,11 +17,20 @@ import { AppStackParamList } from '../../navigation/AppNavigator';
 import { api } from '../../api/client';
 import type { Campaign } from '../../api/types';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
+import { useAuth } from '../../auth/context';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
+function displayNameFromUser(email: string | undefined): string {
+  if (!email) return 'there';
+  const part = email.split('@')[0];
+  return part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : 'there';
+}
+
 export function CampaignsScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const { user } = useAuth();
+  const userName = displayNameFromUser(user?.email);
 
   const winkScale = React.useRef(new Animated.Value(1)).current;
   const smileScale = React.useRef(new Animated.Value(1)).current;
@@ -88,7 +97,7 @@ export function CampaignsScreen() {
             />
           </View>
           <Text style={styles.speechBubble}>
-            Hey there! You're on fire today! 🔥{'\n'}
+            Hey {userName}! You're on fire today! 🔥{'\n'}
             Ready to complete your daily mission?
           </Text>
         </View>

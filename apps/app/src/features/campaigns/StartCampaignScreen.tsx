@@ -15,9 +15,6 @@ import * as Location from 'expo-location';
 import { Button } from '../../components';
 import { colors, typography, spacing, borderRadius } from '../../theme';
 
-const MapView: any = null;
-const Marker: any = null;
-
 const MIN_DONATION_THB = 50;
 const DEFAULT_REGION = {
   latitude: 13.7563,
@@ -61,11 +58,6 @@ export function StartCampaignScreen() {
       }
     })();
   }, []);
-
-  const handleMapPress = (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
-    const { latitude, longitude } = e.nativeEvent.coordinate;
-    setPin({ latitude, longitude });
-  };
 
   const canGoNext = () => {
     if (!name.trim()) return false;
@@ -145,60 +137,38 @@ export function StartCampaignScreen() {
           />
 
           <Text style={styles.label}>Location</Text>
-          <Text style={styles.hint}>
-            {MapView && Marker
-              ? 'Tap the map to place a pin, or add a place name below.'
-              : 'Enter coordinates below (maps need a development build).'}
-          </Text>
+          <Text style={styles.hint}>Set coordinates below or use your current location.</Text>
           <View style={styles.mapContainer}>
-            {MapView && Marker ? (
-              <MapView
-                style={styles.map}
-                region={region}
-                onRegionChangeComplete={setRegion}
-                onPress={handleMapPress}
-                showsUserLocation
-              >
-                {pin && (
-                  <Marker
-                    coordinate={pin}
-                    draggable
-                    onDragEnd={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => setPin(e.nativeEvent.coordinate)}
-                  />
-                )}
-              </MapView>
-            ) : (
-              <View style={styles.mapPlaceholder}>
-                <Text style={styles.mapPlaceholderText}>Map unavailable in Expo Go</Text>
-                <Text style={styles.mapPlaceholderSubtext}>
-                  Use a development build for the full map. You can still set coordinates below.
-                </Text>
-                <View style={styles.coordRow}>
-                  <TextInput
-                    style={[styles.input, styles.coordInput]}
-                    placeholder="Lat"
-                    value={pin ? String(pin.latitude.toFixed(5)) : ''}
-                    onChangeText={(t) => {
-                      const n = parseFloat(t);
-                      if (!isNaN(n)) setPin((p) => ({ ...(p ?? { longitude: region.longitude }), latitude: n }));
-                    }}
-                    keyboardType="decimal-pad"
-                    placeholderTextColor={colors.textGray}
-                  />
-                  <TextInput
-                    style={[styles.input, styles.coordInput]}
-                    placeholder="Lng"
-                    value={pin ? String(pin.longitude.toFixed(5)) : ''}
-                    onChangeText={(t) => {
-                      const n = parseFloat(t);
-                      if (!isNaN(n)) setPin((p) => ({ ...(p ?? { latitude: region.latitude }), longitude: n }));
-                    }}
-                    keyboardType="decimal-pad"
-                    placeholderTextColor={colors.textGray}
-                  />
-                </View>
+            <View style={styles.mapPlaceholder}>
+              <Text style={styles.mapPlaceholderText}>Location (mock)</Text>
+              <Text style={styles.mapPlaceholderSubtext}>
+                Set coordinates below. Use a development build for the full map later.
+              </Text>
+              <View style={styles.coordRow}>
+                <TextInput
+                  style={[styles.input, styles.coordInput]}
+                  placeholder="Lat"
+                  value={pin ? String(pin.latitude.toFixed(5)) : ''}
+                  onChangeText={(t) => {
+                    const n = parseFloat(t);
+                    if (!isNaN(n)) setPin((p) => ({ ...(p ?? { longitude: region.longitude }), latitude: n }));
+                  }}
+                  keyboardType="decimal-pad"
+                  placeholderTextColor={colors.textGray}
+                />
+                <TextInput
+                  style={[styles.input, styles.coordInput]}
+                  placeholder="Lng"
+                  value={pin ? String(pin.longitude.toFixed(5)) : ''}
+                  onChangeText={(t) => {
+                    const n = parseFloat(t);
+                    if (!isNaN(n)) setPin((p) => ({ ...(p ?? { latitude: region.latitude }), longitude: n }));
+                  }}
+                  keyboardType="decimal-pad"
+                  placeholderTextColor={colors.textGray}
+                />
               </View>
-            )}
+            </View>
           </View>
           <TextInput
             style={styles.input}
