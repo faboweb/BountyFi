@@ -10,11 +10,13 @@ import {
   Alert,
   Animated,
   SafeAreaView,
+  ViewStyle,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/context';
+import { getBountyFiContract } from '../../utils/contracts';
 import { mockWebSocket } from '../../api/mock';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Submission } from '../../api/types';

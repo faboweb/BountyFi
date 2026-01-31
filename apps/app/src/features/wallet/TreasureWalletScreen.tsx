@@ -68,10 +68,10 @@ export function TreasureWalletScreen() {
                 <Text style={styles.boostText}>x2 Boost</Text>
               </Animated.View>
             </View>
-            <Text style={styles.vaultAmount}>23</Text>
+            <Text style={styles.vaultAmount}>{user?.tickets ?? 0}</Text>
             <Text style={styles.vaultLabel}>Bounty Tickets</Text>
             <View style={styles.diamondsRow}>
-              <Text style={styles.diamondsValue}>32</Text>
+              <Text style={styles.diamondsValue}>{user?.diamonds ?? 0}</Text>
               <Text style={styles.diamondsLabel}>💎 Diamonds</Text>
             </View>
             <View style={styles.vaultFooter}>
@@ -156,7 +156,7 @@ export function TreasureWalletScreen() {
               </Card>
             ) : (
               <View style={styles.trustedGrid}>
-                {trustedProfiles.map((profile) => (
+                {trustedProfiles.map((profile: { id: string; name: string; initial: string }) => (
                   <Card key={profile.id} style={styles.trustedCard}>
                     <View style={styles.trustedAvatar}>
                       <Text style={styles.trustedAvatarText}>{profile.initial}</Text>

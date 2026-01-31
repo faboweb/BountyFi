@@ -6,6 +6,8 @@ const USER_ID_KEY = 'user_id';
 const WALLET_ADDRESS_KEY = 'wallet_address';
 const EMAIL_KEY = 'email';
 const PRIVATE_KEY_KEY = 'local_private_key';
+const CDP_ACCESS_TOKEN_KEY = 'cdp_access_token';
+const CDP_EMAIL_KEY = 'cdp_email';
 
 
 export const authStorage = {
@@ -25,6 +27,21 @@ export const authStorage = {
     return await SecureStore.getItemAsync(PRIVATE_KEY_KEY);
   },
 
+  async saveCDPAccessToken(token: string): Promise<void> {
+    await SecureStore.setItemAsync(CDP_ACCESS_TOKEN_KEY, token);
+  },
+
+  async getCDPAccessToken(): Promise<string | null> {
+    return await SecureStore.getItemAsync(CDP_ACCESS_TOKEN_KEY);
+  },
+
+  async saveCDPEmail(email: string): Promise<void> {
+    await SecureStore.setItemAsync(CDP_EMAIL_KEY, email);
+  },
+
+  async getCDPEmail(): Promise<string | null> {
+    return await SecureStore.getItemAsync(CDP_EMAIL_KEY);
+  },
 
 
   async saveUser(user: { id: string; wallet_address: string; email: string }): Promise<void> {
@@ -51,6 +68,8 @@ export const authStorage = {
     await SecureStore.deleteItemAsync(WALLET_ADDRESS_KEY);
     await SecureStore.deleteItemAsync(EMAIL_KEY);
     await SecureStore.deleteItemAsync(PRIVATE_KEY_KEY);
+    await SecureStore.deleteItemAsync(CDP_ACCESS_TOKEN_KEY);
+    await SecureStore.deleteItemAsync(CDP_EMAIL_KEY);
   },
 
 };
