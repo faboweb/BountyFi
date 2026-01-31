@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,6 +7,7 @@ import {
   ScrollView,
   SafeAreaView,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -17,6 +19,12 @@ type NavigationProp = NativeStackNavigationProp<AppStackParamList, 'DonateHome'>
 
 export function DonateHomeScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const [showSecondLine, setShowSecondLine] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowSecondLine(true), 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -32,9 +40,10 @@ export function DonateHomeScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.mottoGradient}
           >
-            <Text style={styles.mottoText}>
-              Donate for social impact.{'\n'}Donate to motivate.
-            </Text>
+            <Text style={styles.mottoTextLine1}>Donate for social impact.</Text>
+            {showSecondLine && (
+              <Text style={styles.mottoTextLine2}>Donate to motivate.</Text>
+            )}
           </LinearGradient>
         </View>
 
@@ -43,10 +52,10 @@ export function DonateHomeScreen() {
           onPress={() => navigation.navigate('CreateQuest')}
           activeOpacity={0.85}
         >
-          <View style={styles.optionIcon}>
+          <View style={styles.optionTitleRow}>
             <Text style={styles.optionEmoji}>✨</Text>
+            <Text style={styles.optionTitle}>Create a new quest</Text>
           </View>
-          <Text style={styles.optionTitle}>Create a new quest</Text>
           <Text style={styles.optionSubtitle}>
             Set up a new quest with location, goals, and a minimum 50 THB donation.
           </Text>
@@ -57,14 +66,22 @@ export function DonateHomeScreen() {
           onPress={() => navigation.navigate('DonateQuestList')}
           activeOpacity={0.85}
         >
-          <View style={styles.optionIcon}>
+          <View style={styles.optionTitleRow}>
             <Text style={styles.optionEmoji}>🎯</Text>
+            <Text style={styles.optionTitle}>Donate to an existing quest</Text>
           </View>
-          <Text style={styles.optionTitle}>Donate to an existing quest</Text>
           <Text style={styles.optionSubtitle}>
             Choose an active quest and add your donation.
           </Text>
         </TouchableOpacity>
+
+        <View style={styles.jellyfishSection}>
+          <Image
+            source={require('../../../assets/jellyfish.png')}
+            style={styles.jellyfishImage}
+            resizeMode="contain"
+          />
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -93,45 +110,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  mottoText: {
+  mottoTextLine1: {
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
-    fontSize: 20,
+    fontSize: 22,
     color: Colors.white,
     textAlign: 'center',
-    lineHeight: 30,
+    lineHeight: 28,
+  },
+  mottoTextLine2: {
+    fontFamily: Typography.body.fontFamily,
+    fontWeight: '400',
+    fontSize: 16,
+    color: Colors.white,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
   },
   optionCard: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
-    padding: Spacing.lg,
+    paddingVertical: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
     borderWidth: 2,
     borderColor: Colors.creamDark,
+    minHeight: 140,
+    justifyContent: 'center',
+    overflow: 'visible',
     ...Shadows.card,
   },
-  optionIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.cream,
+  optionTitleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
+    gap: Spacing.sm,
+    marginBottom: Spacing.xs,
   },
   optionEmoji: {
-    fontSize: 24,
+    fontSize: 22,
   },
   optionTitle: {
+    flex: 1,
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
     fontSize: 18,
     color: Colors.ivoryBlueDark,
-    marginBottom: Spacing.xs,
   },
   optionSubtitle: {
     fontSize: 14,
     color: Colors.textGray,
     lineHeight: 22,
+  },
+  jellyfishSection: {
+    marginTop: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 200,
+    backgroundColor: Colors.cream,
+  },
+  jellyfishImage: {
+    width: 180,
+    height: 180,
   },
 });

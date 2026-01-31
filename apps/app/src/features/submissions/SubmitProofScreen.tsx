@@ -221,7 +221,7 @@ export function SubmitProofScreen() {
       Alert.alert(
         'Success',
         'Submission uploaded! Pending validation...',
-        [{ text: 'OK', onPress: () => (navigation.getParent() as any)?.navigate('WalletTab', { screen: 'TreasureWallet' }) }]
+        [{ text: 'OK', onPress: () => (navigation.getParent() as any)?.navigate('ProfileTab', { screen: 'TreasureWallet' }) }]
       );
     },
     onError: (error: any) => {

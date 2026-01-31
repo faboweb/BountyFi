@@ -1,6 +1,9 @@
 import * as React from 'react';
-import { View, Text } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { View, Text, StyleSheet } from 'react-native';
+import { createBottomTabNavigator, BottomTabBar } from '@react-navigation/bottom-tabs';
+import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '../theme/theme';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { CampaignsScreen } from '../features/campaigns/CampaignsScreen';
 import { CampaignDetailScreen } from '../features/campaigns/CampaignDetailScreen';
@@ -25,6 +28,8 @@ import { TreasureWalletScreen } from '../features/wallet/TreasureWalletScreen';
 import { RedeemChallengesScreen } from '../features/wallet/RedeemChallengesScreen';
 import { PlayTicketResultScreen } from '../features/wallet/PlayTicketResultScreen';
 import { RewardsCelebrationScreen } from '../features/rewards/RewardsCelebrationScreen';
+import { TeamScreen } from '../features/team/TeamScreen';
+import { AddTeamMemberScreen } from '../features/team/AddTeamMemberScreen';
 
 export type AppStackParamList = {
   DonateHome: undefined;
@@ -48,18 +53,34 @@ export type AppStackParamList = {
   RedeemChallenges: undefined;
   PlayTicketResult: { won: boolean; prize?: string; emoji?: string; challengeName: string };
   RewardsCelebration: { total?: number; balance?: number; breakdown?: { label: string; value: string }[] } | undefined;
+  AddTeamMember: undefined;
 };
 
 export type TabParamList = {
   QuestsTab: undefined;
   DonateTab: undefined;
   ValidateTab: undefined;
-  WalletTab: undefined;
+  TeamTab: undefined;
   ProfileTab: undefined;
 };
 
 const Tab = createBottomTabNavigator<TabParamList>();
 const Stack = createNativeStackNavigator<AppStackParamList>();
+
+const TAB_BAR_HEIGHT = 67;
+const TAB_ICON_SIZE = 32;
+const TAB_ICON_SIZE_ROUND = 28;
+const TABS_OFFSET_UP = 4;
+
+function CustomTabBar(props: BottomTabBarProps) {
+  return (
+    <View style={styles.tabBarOuter}>
+      <View style={styles.tabBarContentWrap}>
+        <BottomTabBar {...props} />
+      </View>
+    </View>
+  );
+}
 
 function DonateStack() {
   return (
@@ -88,14 +109,24 @@ function QuestsStack() {
   );
 }
 
-function WalletStack() {
+function ProfileStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Profile" component={ProfileScreen} />
+      <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
       <Stack.Screen name="Lottery" component={LotteryScreen} />
-      <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
       <Stack.Screen name="RedeemChallenges" component={RedeemChallengesScreen} />
       <Stack.Screen name="PlayTicketResult" component={PlayTicketResultScreen} />
+    </Stack.Navigator>
+  );
+}
+
+function TeamStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Team" component={TeamScreen} />
+      <Stack.Screen name="AddTeamMember" component={AddTeamMemberScreen} />
     </Stack.Navigator>
   );
 }
@@ -103,10 +134,14 @@ function WalletStack() {
 export function AppNavigator() {
   return (
     <Tab.Navigator
+      tabBar={(p) => <CustomTabBar {...p} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#5B8DAF',
-        tabBarInactiveTintColor: '#8E8E93',
+        tabBarActiveTintColor: Colors.ivoryBlue,
+        tabBarInactiveTintColor: '#999999',
+        tabBarStyle: styles.tabBar,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: styles.tabBarLabel,
       }}
     >
       <Tab.Screen
@@ -114,7 +149,9 @@ export function AppNavigator() {
         component={QuestsStack}
         options={{
           title: 'Quests',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🏴</Text>,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'home' : 'home-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+          ),
         }}
       />
       <Tab.Screen
@@ -122,7 +159,11 @@ export function AppNavigator() {
         component={DonateStack}
         options={{
           title: 'Donate',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>💝</Text>,
+          tabBarIcon: ({ focused, color }) => (
+            <View style={styles.tabIconWrap}>
+              <Ionicons name={focused ? 'heart' : 'heart-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+            </View>
+          ),
         }}
       />
       <Tab.Screen
@@ -130,26 +171,68 @@ export function AppNavigator() {
         component={ValidateQueueScreen}
         options={{
           title: 'Verify',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>☑️</Text>,
+          tabBarIcon: ({ focused, color }) => (
+            <View style={styles.tabIconWrap}>
+              <Ionicons name={focused ? 'checkmark-circle' : 'checkmark-circle-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+            </View>
+          ),
         }}
       />
       <Tab.Screen
-        name="WalletTab"
-        component={WalletStack}
+        name="TeamTab"
+        component={TeamStack}
         options={{
-          title: 'Wallet',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>🔲</Text>,
+          title: 'Team',
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'people' : 'people-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+          ),
         }}
-        initialParams={{ screen: 'TreasureWallet' } as any}
       />
       <Tab.Screen
         name="ProfileTab"
-        component={ProfileScreen}
+        component={ProfileStack}
         options={{
           title: 'Profile',
-          tabBarIcon: ({ color }) => <Text style={{ color, fontSize: 20 }}>👤</Text>,
+          tabBarIcon: ({ focused, color }) => (
+            <Ionicons name={focused ? 'person' : 'person-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
+          ),
         }}
       />
     </Tab.Navigator>
   );
 }
+
+const styles = StyleSheet.create({
+  tabBarOuter: {
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.08)',
+    paddingTop: 10,
+    paddingBottom: 20,
+    overflow: 'visible',
+  },
+  tabBarContentWrap: {
+    overflow: 'visible',
+  },
+  tabBar: {
+    backgroundColor: 'transparent',
+    borderTopWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+    height: TAB_BAR_HEIGHT,
+    paddingTop: 10,
+    paddingBottom: 14,
+    overflow: 'visible',
+    marginTop: -TABS_OFFSET_UP,
+  },
+  tabIconWrap: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'visible',
+  },
+  tabBarLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 2,
+  },
+});

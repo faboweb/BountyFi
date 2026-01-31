@@ -1,8 +1,6 @@
 import * as React from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Dimensions, Animated } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../../api/client';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Card } from '../../components/Card';
 import { Badge } from '../../components/Badge';
@@ -12,26 +10,11 @@ import { AppStackParamList } from '../../navigation/AppNavigator';
 
 const { width } = Dimensions.get('window');
 
-/** Mock display names for trusted network members (by user id) */
-const TRUSTED_NETWORK_DISPLAY: Record<string, { name: string; initial: string }> = {
-  user_2: { name: 'Jordan', initial: 'J' },
-  user_3: { name: 'Sam', initial: 'S' },
-};
-
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
 export function TreasureWalletScreen() {
   const navigation = useNavigation<NavigationProp>();
   const boostPulse = React.useRef(new Animated.Value(1)).current;
-  const { data: user } = useQuery({
-    queryKey: ['user', 'me'],
-    queryFn: () => api.users.getMe(),
-  });
-  const trustedIds = user?.trusted_network_ids ?? [];
-  const trustedProfiles = trustedIds.map((id: string) => ({
-    id,
-    ...(TRUSTED_NETWORK_DISPLAY[id] ?? { name: `Member`, initial: id.slice(-1).toUpperCase() }),
-  }));
 
   React.useEffect(() => {
     const pulse = () => {
@@ -142,30 +125,6 @@ export function TreasureWalletScreen() {
                 <Text style={styles.leaderName}>Alex L.</Text>
               </View>
             </View>
-          </View>
-
-          {/* Your trusted network */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Your trusted network</Text>
-            <Text style={styles.trustedSubtitle}>Win together, lose together.</Text>
-            {trustedProfiles.length === 0 ? (
-              <Card style={styles.trustedEmpty}>
-                <Text style={styles.trustedEmptyEmoji}>👥</Text>
-                <Text style={styles.trustedEmptyText}>No one in your network yet</Text>
-                <Text style={styles.trustedEmptyHint}>Add people you trust — you share rewards and penalties as a group.</Text>
-              </Card>
-            ) : (
-              <View style={styles.trustedGrid}>
-                {trustedProfiles.map((profile) => (
-                  <Card key={profile.id} style={styles.trustedCard}>
-                    <View style={styles.trustedAvatar}>
-                      <Text style={styles.trustedAvatarText}>{profile.initial}</Text>
-                    </View>
-                    <Text style={styles.trustedName}>{profile.name}</Text>
-                  </Card>
-                ))}
-              </View>
-            )}
           </View>
 
           <View style={{ height: 100 }} />
@@ -402,59 +361,5 @@ const styles = StyleSheet.create({
     top: -20,
     fontSize: 24,
     zIndex: 2,
-  },
-  trustedSubtitle: {
-    fontSize: 14,
-    color: Colors.textGray,
-    marginBottom: Spacing.md,
-  },
-  trustedEmpty: {
-    alignItems: 'center',
-    padding: Spacing.xl,
-  },
-  trustedEmptyEmoji: {
-    fontSize: 40,
-    marginBottom: Spacing.md,
-  },
-  trustedEmptyText: {
-    ...Typography.body,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  trustedEmptyHint: {
-    fontSize: 14,
-    color: Colors.textGray,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  trustedGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: Spacing.md,
-  },
-  trustedCard: {
-    width: (width - Spacing.md * 2 - Spacing.md * 2) / 2,
-    minWidth: 100,
-    alignItems: 'center',
-    padding: Spacing.lg,
-  },
-  trustedAvatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: Colors.ivoryBlueLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.sm,
-  },
-  trustedAvatarText: {
-    ...Typography.heading,
-    fontSize: 22,
-    color: Colors.ivoryBlueDark,
-  },
-  trustedName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: Colors.ivoryBlueDark,
   },
 });

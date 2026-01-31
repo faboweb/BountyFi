@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../navigation/AppNavigator';
+import { useAuth } from '../../auth/context';
 import { api } from '../../api/client';
 import type { Campaign } from '../../api/types';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
@@ -22,6 +23,8 @@ type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
 export function CampaignsScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const { user } = useAuth();
+  const username = user?.email?.split('@')[0] ?? 'there';
 
   const winkScale = React.useRef(new Animated.Value(1)).current;
   const smileScale = React.useRef(new Animated.Value(1)).current;
@@ -88,7 +91,7 @@ export function CampaignsScreen() {
             />
           </View>
           <Text style={styles.speechBubble}>
-            Hey there! You're on fire today! 🔥{'\n'}
+            Hey {username}! You're on fire today! 🔥{'\n'}
             Ready to complete your daily mission?
           </Text>
         </View>

@@ -9,8 +9,8 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  SafeAreaView,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/context';
@@ -46,7 +46,6 @@ export function ValidateQueueScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  const hybridPulse = useRef(new Animated.Value(1)).current;
   const queueRef = useRef<QueueItem[]>([]);
   const indexRef = useRef(0);
   const mountedRef = useRef(true);
@@ -58,16 +57,6 @@ export function ValidateQueueScreen() {
       mountedRef.current = false;
     };
   }, []);
-
-  useEffect(() => {
-    const pulse = () => {
-      Animated.sequence([
-        Animated.timing(hybridPulse, { toValue: 0.88, duration: 600, useNativeDriver: true }),
-        Animated.timing(hybridPulse, { toValue: 1, duration: 600, useNativeDriver: true }),
-      ]).start(() => setTimeout(pulse, 2500));
-    };
-    setTimeout(pulse, 800);
-  }, [hybridPulse]);
 
   const { data: submissions, isLoading, refetch } = useQuery({
     queryKey: ['submissions', 'pending'],
@@ -195,11 +184,11 @@ export function ValidateQueueScreen() {
         const { diamonds_lost, trusted_network_lost_ticket } = data.penalty;
         const msg =
           trusted_network_lost_ticket
-            ? '3rd audit fail: your trusted network loses 1 ticket. Stay attentive!'
+            ? 'Third miss: your trusted network loses 1 ticket. Watch for spot checks — same photo twice means Reject.'
             : diamonds_lost > 0
-              ? `Audit fail: −${diamonds_lost} 💎. Same-image pairs must be rejected.`
+              ? `That was a spot check. −${diamonds_lost} 💎 — reject when you see the same photo twice.`
               : '';
-        if (msg) Alert.alert('Audit penalty', msg, [{ text: 'OK' }]);
+        if (msg) Alert.alert('Spot check', msg, [{ text: 'OK' }]);
       }
       // Defer so state updates happen after mutation completes (avoids crash when moving to next)
       setTimeout(() => advanceToNext(), 0);
@@ -222,9 +211,9 @@ export function ValidateQueueScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <SafeAreaView style={[styles.safeArea, styles.center]}>
         <ActivityIndicator size="large" color={Colors.ivoryBlue} />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -233,17 +222,28 @@ export function ValidateQueueScreen() {
 
   if (noPending && !hasQueue) {
     return (
-      <View style={[styles.container, styles.center, { padding: Spacing.xl }]}>
-        <Text style={styles.emptyText}>Nothing left to validate. Come back soon!</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Verify</Text>
+        </View>
+        <View style={[styles.emptyWrapper, styles.center]}>
+          <View style={styles.emptyIconContainer}>
+            <Text style={styles.emptyEmoji}>✨</Text>
+          </View>
+          <Text style={styles.emptyText}>All caught up!</Text>
+          <Text style={styles.emptySubtext}>
+            There are no submissions to review right now. Check back later — your help keeps the community honest.
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!hasQueue || !currentItem) {
     return (
-      <View style={[styles.container, styles.center]}>
+      <SafeAreaView style={[styles.safeArea, styles.center]}>
         <ActivityIndicator size="large" color={Colors.ivoryBlue} />
-      </View>
+      </SafeAreaView>
     );
   }
 
@@ -253,190 +253,201 @@ export function ValidateQueueScreen() {
   const juryTaskNum = currentIndex + 1;
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
-      <Animated.View style={{ opacity: fadeAnim }}>
-        {/* Hybrid verification info – small pulse (lavender style) */}
-        <Animated.View style={[styles.hybridCard, { opacity: hybridPulse }]}>
-          <Text style={styles.hybridTitle}>Hybrid: 2 peers + 1 AI</Text>
-          <Text style={styles.hybridDesc}>
-            Deterministic checks: GPS ✓ · Photos ✓ · Rules ✓
-          </Text>
-          <View style={styles.hybridReward}>
-            <Text style={styles.hybridRewardText}>+1 💎 per correct verification</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Verify</Text>
+        <Text style={styles.headerSubtitle}>Review submissions, earn diamonds</Text>
+      </View>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View style={{ opacity: fadeAnim }}>
+          {/* Quest Rules */}
+          <View style={styles.questRulesCard}>
+            <Text style={styles.questRulesTitle}>Quest rules</Text>
+            <View style={styles.questRulesList}>
+              <View style={styles.questRuleRow}>
+                <Text style={styles.questRuleIcon}>✓</Text>
+                <Text style={styles.questRuleItem}>Photo must be clear and in focus</Text>
+              </View>
+              <View style={styles.questRuleRow}>
+                <Text style={styles.questRuleIcon}>✓</Text>
+                <Text style={styles.questRuleItem}>No people or faces in frame</Text>
+              </View>
+              <View style={styles.questRuleRow}>
+                <Text style={styles.questRuleIcon}>✓</Text>
+                <Text style={styles.questRuleItem}>Before is dirty / after is visibly clean</Text>
+              </View>
+            </View>
           </View>
-          <Text style={styles.hybridPenalty}>
-            Random audits (same-image pairs): wrong vote → 1st −1💎, 2nd −5💎, 3rd your trusted network loses 1 ticket.
-          </Text>
-        </Animated.View>
 
-        {/* Jury task */}
-        <View style={styles.juryCard}>
-          <LinearGradient
-            colors={[Colors.lavender, '#9071C9']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.juryBadge}
-          >
-            <Text style={styles.juryBadgeText}>
-              {isAudit ? '🔍 Audit' : '⚖️ Jury'} #{juryTaskNum}
+          {/* Review task card – primary blue, per HTML */}
+          <View style={styles.juryCard}>
+            <View style={styles.juryBadge}>
+              <Text style={styles.juryBadgeText}>
+                {isAudit ? 'Spot check' : 'Review'} #{juryTaskNum}
+              </Text>
+            </View>
+            <Text style={styles.juryTitle}>
+              {isAudit ? 'Same photo twice — reject' : 'Before & after'}
             </Text>
-          </LinearGradient>
-          <Text style={styles.juryTitle}>
-            {isAudit ? 'Same-image audit' : 'Review submission'}
-          </Text>
 
-          <View style={styles.twoPhotosRow}>
-            <View style={styles.halfPhoto}>
-              <Text style={styles.photoLabel}>Before</Text>
-              {beforeUri && !imageErrors.before ? (
-                <Image
-                  source={{ uri: beforeUri }}
-                  style={styles.submissionImage}
-                  resizeMode="cover"
-                  onError={onBeforeError}
-                />
-              ) : (
-                <View style={styles.submissionImagePlaceholder}>
-                  <Text style={styles.submissionPlaceholder}>🖼️</Text>
-                </View>
-              )}
-            </View>
-            <View style={styles.halfPhoto}>
-              <Text style={styles.photoLabel}>After</Text>
-              {afterUri && !imageErrors.after ? (
-                <Image
-                  source={{ uri: afterUri }}
-                  style={styles.submissionImage}
-                  resizeMode="cover"
-                  onError={onAfterError}
-                />
-              ) : (
-                <View style={styles.submissionImagePlaceholder}>
-                  <Text style={styles.submissionPlaceholder}>🖼️</Text>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {!isAudit && (
-            <View style={styles.juryInfo}>
-              <View style={styles.infoChip}>
-                <Text style={styles.infoLabel}>GPS</Text>
-                <Text style={styles.infoValue}>✓</Text>
+            <View style={styles.twoPhotosRow}>
+              <View style={styles.halfPhoto}>
+                <Text style={styles.photoLabel}>Before</Text>
+                {beforeUri && !imageErrors.before ? (
+                  <Image
+                    source={{ uri: beforeUri }}
+                    style={styles.submissionImage}
+                    resizeMode="cover"
+                    onError={onBeforeError}
+                  />
+                ) : (
+                  <View style={styles.submissionImagePlaceholder}>
+                    <Text style={styles.submissionPlaceholder}>🖼️</Text>
+                  </View>
+                )}
               </View>
-              <View style={styles.infoChip}>
-                <Text style={styles.infoLabel}>AI</Text>
-                <Text style={styles.infoValue}>1 of 3</Text>
-              </View>
-              <View style={styles.infoChip}>
-                <Text style={styles.infoLabel}>Reward</Text>
-                <Text style={styles.infoValue}>+1 💎</Text>
+              <View style={styles.halfPhoto}>
+                <Text style={styles.photoLabel}>After</Text>
+                {afterUri && !imageErrors.after ? (
+                  <Image
+                    source={{ uri: afterUri }}
+                    style={styles.submissionImage}
+                    resizeMode="cover"
+                    onError={onAfterError}
+                  />
+                ) : (
+                  <View style={styles.submissionImagePlaceholder}>
+                    <Text style={styles.submissionPlaceholder}>🖼️</Text>
+                  </View>
+                )}
               </View>
             </View>
-          )}
 
-          <Text style={styles.juryQuestion}>
+            <Text style={styles.juryQuestion}>
             {isAudit
-              ? 'Are these a valid before/after pair? (Same image = Reject)'
-              : 'Does this submission show a valid before/after with GPS and rules met?'}
+              ? 'This is a spot check. The same photo is used for both — tap Reject.'
+              : 'Does this before & after look valid and follow the mission rules?'}
           </Text>
 
           {!isOwnSubmission ? (
             <View style={styles.voteButtons}>
               <TouchableOpacity
-                style={[styles.voteBtn, styles.voteApprove]}
-                onPress={() => handleVote('approve')}
-                disabled={voteMutation.isPending}
-              >
-                <LinearGradient
-                  colors={[Colors.grass, '#5DC561']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <Text style={styles.voteBtnText}>✓ Approve</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
                 style={[styles.voteBtn, styles.voteReject]}
                 onPress={() => handleVote('reject')}
                 disabled={voteMutation.isPending}
               >
-                <LinearGradient
-                  colors={[Colors.coral, '#FF6B4A']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={StyleSheet.absoluteFill}
-                />
-                <Text style={styles.voteBtnText}>✗ Reject</Text>
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.accentNo }]} />
+                <View style={styles.voteBtnContent}>
+                  <Text style={styles.voteBtnText}>No</Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.voteBtn, styles.voteApprove]}
+                onPress={() => handleVote('approve')}
+                disabled={voteMutation.isPending}
+              >
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.accentYes }]} />
+                <View style={styles.voteBtnContent}>
+                  <Text style={styles.voteBtnText}>Yes</Text>
+                </View>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.voteBtn, styles.voteUnclear]}
                 onPress={handleUnclear}
               >
-                <Text style={styles.voteUnclearText}>❓ Unclear / Skip</Text>
+                <View style={styles.voteBtnContent}>
+                  <Text style={styles.voteUnclearText}>Not sure</Text>
+                </View>
               </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.ownSubmissionBanner}>
               <Text style={styles.ownSubmissionText}>
-                This is your submission. You cannot vote on it.
+                This one’s yours — skip to the next.
               </Text>
             </View>
           )}
         </View>
 
-        {/* Jury stats: diamonds + audit tier */}
+        {/* Your stats – per HTML design */}
         <View style={styles.juryStatsCard}>
-          <Text style={styles.juryStatsLabel}>Your jury stats</Text>
+          <Text style={styles.juryStatsLabel}>YOUR STATS</Text>
           <View style={styles.juryStatsRow}>
             <View style={styles.juryStatItem}>
-              <Text style={[styles.juryStatValue, { color: Colors.sunshine }]}>{diamonds} 💎</Text>
+              <View style={styles.juryStatValueRow}>
+                <Text style={[styles.juryStatValue, { color: Colors.sunshine }]}>{diamonds}</Text>
+                <Text style={styles.juryStatDiamond}>💎</Text>
+              </View>
               <Text style={styles.juryStatLabel}>Diamonds</Text>
             </View>
             <View style={styles.juryStatItem}>
-              <Text style={[styles.juryStatValue, { color: Colors.ivoryBlue }]}>
+              <Text style={[styles.juryStatValue, { color: Colors.ivoryBlueDark }]}>
                 {userData?.validations_completed ?? user?.validations_completed ?? 0}
               </Text>
-              <Text style={styles.juryStatLabel}>Votes cast</Text>
+              <Text style={styles.juryStatLabel}>Reviewed</Text>
             </View>
             <View style={styles.juryStatItem}>
-              <Text style={[styles.juryStatValue, { color: auditFailCount >= 2 ? Colors.coral : Colors.textGray }]}>
+              <Text style={[styles.juryStatValue, { color: Colors.ivoryBlueDark }]}>
                 {auditFailCount}/3
               </Text>
-              <Text style={styles.juryStatLabel}>Audit tier</Text>
+              <Text style={styles.juryStatLabel}>Wrong</Text>
             </View>
           </View>
-          {(userData?.trusted_network_ids?.length ?? user?.trusted_network_ids?.length ?? 0) > 0 && (
-            <Text style={styles.trustedNote}>Trusted network: win together; 3rd audit fail = network loses 1 ticket</Text>
-          )}
+          <View style={styles.trustedNoteWrapper}>
+            <Text style={styles.trustedNote}>Your trusted network wins together — 3 wrong answers and the network loses 1 ticket.</Text>
+          </View>
         </View>
       </Animated.View>
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.backgroundLight,
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.cream,
   },
   center: {
     justifyContent: 'center',
     alignItems: 'center',
   },
+  header: {
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
+  },
+  headerTitle: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 36,
+    color: Colors.ivoryBlue,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textGray,
+    marginTop: 4,
+  },
   scrollContent: {
     padding: Spacing.lg,
+    paddingTop: 0,
     paddingBottom: 100,
   },
   juryCard: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xxl,
+    backgroundColor: Colors.ivoryBlue,
+    borderRadius: 32,
     padding: Spacing.lg,
+    paddingBottom: 43,
     marginBottom: Spacing.lg,
+    overflow: 'visible',
     ...Shadows.card,
   },
   juryBadge: {
@@ -444,79 +455,88 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    borderRadius: 9999,
     marginBottom: Spacing.md,
-    overflow: 'hidden',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   juryBadgeText: {
     fontFamily: Typography.heading.fontFamily,
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 11,
     color: Colors.white,
+    letterSpacing: 1,
   },
   juryTitle: {
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
     fontSize: 20,
-    color: Colors.ivoryBlueDark,
+    color: Colors.white,
     marginBottom: Spacing.md,
   },
-  hybridCard: {
+  questRulesCard: {
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.lavender,
+    borderRadius: 24,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.creamDark,
     ...Shadows.sm,
   },
-  hybridTitle: {
+  questRulesTitle: {
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
-    fontSize: 16,
-    color: Colors.ivoryBlueDark,
-    marginBottom: 4,
+    fontSize: 18,
+    color: Colors.ivoryBlue,
+    marginBottom: Spacing.md,
   },
-  hybridDesc: {
-    fontSize: 13,
-    color: Colors.textGray,
-    marginBottom: 8,
+  questRulesList: {
+    gap: 12,
   },
-  hybridReward: {
-    marginBottom: 8,
+  questRuleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
-  hybridRewardText: {
+  questRuleIcon: {
+    fontSize: 18,
+    color: Colors.ivoryBlue,
+    fontWeight: '700',
+  },
+  questRuleItem: {
+    flex: 1,
     fontSize: 14,
-    fontWeight: '600',
-    color: Colors.grass,
-  },
-  hybridPenalty: {
-    fontSize: 12,
     color: Colors.textGray,
-    lineHeight: 18,
+    lineHeight: 20,
+  },
+  emptyWrapper: {
+    flex: 1,
+    padding: Spacing.xl,
+  },
+  emptyEmoji: {
+    fontSize: 40,
   },
   twoPhotosRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
     marginBottom: Spacing.lg,
   },
   halfPhoto: {
     flex: 1,
+    aspectRatio: 1,
     backgroundColor: Colors.creamDark,
-    borderRadius: BorderRadius.lg,
+    borderRadius: 16,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.ivoryBlueLight,
   },
   photoLabel: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.textGray,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    backgroundColor: Colors.cream,
+    position: 'absolute',
+    top: 8,
+    left: 12,
+    zIndex: 10,
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.9)',
+    letterSpacing: 1,
   },
   submissionPreview: {
     width: '100%',
@@ -533,70 +553,50 @@ const styles = StyleSheet.create({
   },
   submissionImage: {
     width: '100%',
-    height: 120,
+    flex: 1,
     backgroundColor: Colors.creamDark,
   },
   submissionImagePlaceholder: {
     width: '100%',
-    height: 120,
+    flex: 1,
     backgroundColor: Colors.creamDark,
     justifyContent: 'center',
     alignItems: 'center',
   },
   trustedNote: {
-    fontSize: 11,
+    fontSize: 10,
     color: Colors.textGray,
-    marginTop: 8,
     textAlign: 'center',
     fontStyle: 'italic',
+    lineHeight: 16,
   },
   submissionPlaceholder: {
     fontSize: 48,
   },
-  juryInfo: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: Spacing.lg,
-  },
-  infoChip: {
-    flex: 1,
-    backgroundColor: Colors.cream,
-    padding: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  infoLabel: {
-    fontSize: 11,
-    color: Colors.textGray,
-    marginBottom: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  infoValue: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '600',
-    fontSize: 16,
-    color: Colors.ivoryBlueDark,
-  },
   juryQuestion: {
     fontSize: 14,
-    color: Colors.textGray,
+    fontWeight: '500',
+    color: Colors.white,
     lineHeight: 22,
     marginBottom: Spacing.lg,
+    opacity: 0.95,
   },
   voteButtons: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
+    marginBottom: 12,
   },
   voteBtn: {
     flex: 1,
     minWidth: '45%',
-    paddingVertical: Spacing.md,
-    borderRadius: BorderRadius.lg,
+    paddingVertical: 16,
+    paddingHorizontal: 6,
+    borderRadius: 16,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
     ...Shadows.card,
   },
   voteApprove: {
@@ -606,60 +606,101 @@ const styles = StyleSheet.create({
     minWidth: '45%',
   },
   voteUnclear: {
-    minWidth: '100%',
-    backgroundColor: Colors.cream,
+    width: '100%',
+    maxWidth: '100%',
+    backgroundColor: Colors.white,
+    paddingVertical: 16,
+    paddingHorizontal: 6,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.card,
+  },
+  voteBtnContent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   voteBtnText: {
     fontFamily: Typography.heading.fontFamily,
-    fontWeight: '600',
-    fontSize: 16,
+    fontWeight: '700',
+    fontSize: 18,
     color: Colors.white,
+    textAlign: 'center',
   },
   voteUnclearText: {
     fontFamily: Typography.heading.fontFamily,
-    fontWeight: '600',
-    fontSize: 16,
-    color: Colors.ivoryBlueDark,
+    fontWeight: '700',
+    fontSize: 18,
+    color: Colors.ivoryBlue,
+    textAlign: 'center',
   },
   ownSubmissionBanner: {
-    backgroundColor: Colors.cream,
-    padding: Spacing.md,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    padding: Spacing.sm,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
   },
   ownSubmissionText: {
-    color: Colors.textGray,
+    color: Colors.white,
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 12,
   },
   juryStatsCard: {
     backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
+    borderRadius: 24,
+    padding: Spacing.lg,
     alignItems: 'center',
-    ...Shadows.card,
+    borderWidth: 1,
+    borderColor: Colors.creamDark,
+    marginTop: Spacing.md,
+    ...Shadows.sm,
   },
   juryStatsLabel: {
-    fontSize: 13,
+    fontSize: 11,
+    fontWeight: '700',
     color: Colors.textGray,
-    marginBottom: Spacing.sm,
+    letterSpacing: 1,
+    marginBottom: Spacing.lg,
   },
   juryStatsRow: {
     flexDirection: 'row',
-    gap: 24,
+    gap: 8,
     justifyContent: 'center',
   },
   juryStatItem: {
     alignItems: 'center',
+    flex: 1,
+  },
+  juryStatValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   juryStatValue: {
     fontFamily: Typography.heading.fontFamily,
-    fontWeight: '700',
+    fontWeight: '800',
     fontSize: 24,
   },
+  juryStatDiamond: {
+    fontSize: 20,
+  },
   juryStatLabel: {
-    fontSize: 12,
+    fontSize: 10,
+    fontWeight: '700',
     color: Colors.textGray,
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  trustedNoteWrapper: {
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.creamDark,
   },
   emptyIconContainer: {
     width: 80,

@@ -5,22 +5,27 @@
 
 // Ivory blue one shade brighter than original #4A7C9E / #6B9DBF / #2F5470
 export const Colors = {
-  // Primary - Ivory Blue (brighter)
-  ivoryBlue: '#5B8DAF',
+  // Primary - Ivory Blue (brighter) / HTML primary #5A8DB0
+  ivoryBlue: '#5A8DB0',
   ivoryBlueLight: '#7CADCF',
   ivoryBlueDark: '#3A6478',
 
   // Legacy aliases (same as ivory blue)
   primaryDark: '#3A6478',
-  primaryBright: '#5B8DAF',
+  primaryBright: '#5A8DB0',
   primaryLight: '#7CADCF',
 
+  // Background (HTML)
+  backgroundLight: '#FDF9F3',
+
   // Palette
-  cream: '#FFF8F0',
+  cream: '#FDF9F3',
   creamDark: '#F5EBD9',
   sunshine: '#FFD166',
   coral: '#FF8C6B',
-  grass: '#7BC67E',
+  grass: '#81C784',
+  accentNo: '#FF8A65',
+  accentYes: '#81C784',
   lavender: '#A685D9',
   shadow: 'rgba(91, 141, 175, 0.15)',
   accentGold: '#FFD166',
@@ -43,7 +48,7 @@ export const Colors = {
   navyBlack: '#3A6478',
 
   // Gradients (ivory blue)
-  primaryGradient: ['#5B8DAF', '#7CADCF'] as const,
+  primaryGradient: ['#5A8DB0', '#7CADCF'] as const,
   goldGradient: ['#FFD166', '#FF8C6B', '#FFD166'] as const,
   successGradient: ['#7BC67E', '#5DC561'] as const,
   coralGradient: ['#FF8C6B', '#FF6B4A'] as const,
