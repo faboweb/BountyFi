@@ -71,9 +71,13 @@ export function CampaignDetailScreen() {
         {/* Mission header card */}
         <View style={styles.missionHeader}>
           <View style={styles.missionIcon}>
-            <Text style={styles.missionIconEmoji}>
-              {isCleanup ? '🌳' : campaign.quest_type === 'ban_plastic' ? '🛍️' : '🚭'}
-            </Text>
+            {campaign.image_url ? (
+              <Image source={{ uri: campaign.image_url }} style={styles.missionImage} />
+            ) : (
+              <Text style={styles.missionIconEmoji}>
+                {isCleanup ? '🌳' : campaign.quest_type === 'ban_plastic' ? '🛍️' : '🚭'}
+              </Text>
+            )}
           </View>
           <Text style={styles.missionTitle}>{title}</Text>
           <Text style={styles.missionSubtitle}>
@@ -242,6 +246,12 @@ const styles = StyleSheet.create({
   },
   missionIconEmoji: {
     fontSize: 40,
+  },
+  missionImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 20,
+    resizeMode: 'cover',
   },
   missionTitle: {
     fontFamily: Typography.heading.fontFamily,

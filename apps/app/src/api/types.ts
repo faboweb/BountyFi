@@ -2,9 +2,11 @@
 
 export interface User {
   id: string;
+  name?: string;
   email: string;
   wallet_address: `0x${string}`;
   tickets: number;
+  streak: number;
   referral_code: string;
   referred_by?: string;
   validations_completed?: number;
@@ -51,6 +53,8 @@ export interface Campaign {
   tx_hash?: string;
   /** On-chain campaign ID for relay submission */
   onchain_id?: number | null;
+  /** Optional campaign image URL (stored in DB only) */
+  image_url?: string;
 }
 
 export interface Checkpoint {
@@ -166,6 +170,17 @@ export interface ShareCardResponse {
   image_url: string;
 }
 
+export interface TeamRequest {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  status: 'pending' | 'accepted' | 'declined';
+  tx_hash?: string;
+  created_at: string;
+  sender?: User; // joined
+  receiver?: User; // joined
+}
+
 // Request types
 export interface LoginRequest {
   email: string;
@@ -222,6 +237,20 @@ export interface CreateCampaignRequest {
   sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
   onchain_id?: string;
   tx_hash?: string;
+  image_url?: string;
+}
+
+export interface CreateDonationRequest {
+  campaign_id: string;
+  amount: number;
+  company_name: string;
+  type: 'tokens' | 'voucher';
+  details?: string;
+  message?: string;
+  currency?: string;
+  tx_hash?: string;
+  image_url?: string;
+  quantity?: number;
 }
 
 export interface ReferralApplyRequest {

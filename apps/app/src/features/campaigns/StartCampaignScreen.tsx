@@ -113,7 +113,8 @@ export function StartCampaignScreen() {
   // Handle transaction confirmation
   useEffect(() => {
     if (waitStatus === 'success' && waitResult?.receipts && pendingCampaignData) {
-      setShowTxPendingModal(false);
+      // NOTE: We don't hide the pending modal here yet. 
+      // We wait until handleTransactionConfirmed (which triggers indexer) finishes.
       handleTransactionConfirmed(waitResult.receipts[0]);
     }
   }, [waitStatus, waitResult]);
@@ -145,18 +146,28 @@ export function StartCampaignScreen() {
 
       // Trigger indexer to sync from chain
       try {
-        await supabase.functions.invoke('indexer', {
+        console.log('[StartCampaign] Triggering indexer with userOpHash:', currentUserOpHash);
+        const { data: indexerResult, error: indexerInvokeError } = await supabase.functions.invoke('indexer', {
           body: {
             event: 'sync_campaign',
             campaignId: campaignId,
             transactionHash: receipt.transactionHash,
+            userOpHash: currentUserOpHash,
           }
         });
-        console.log('[StartCampaign] Indexer triggered');
+        
+        if (indexerInvokeError || indexerResult?.error) {
+          console.warn('[StartCampaign] Indexer error:', indexerInvokeError || indexerResult?.error);
+        } else {
+          console.log('[StartCampaign] Indexer triggered successfully');
+        }
       } catch (indexerError) {
         console.warn('[StartCampaign] Indexer trigger failed:', indexerError);
       }
 
+      // Hide pending modal only after indexer is triggered (or failed)
+      setShowTxPendingModal(false);
+      
       // Show success modal
       setCreatedCampaignId(campaignId);
       setShowTxSuccessModal(true);
@@ -167,7 +178,7 @@ export function StartCampaignScreen() {
       // Navigate to campaign screen after short delay
       setTimeout(() => {
         setShowTxSuccessModal(false);
-        navigation.navigate('CampaignDetail', { id: campaignId } as any);
+        navigation.navigate('CampaignDetail', { campaignId: campaignId } as any);
       }, 2000);
     } catch (error) {
       console.error('[StartCampaign] Post-transaction error:', error);

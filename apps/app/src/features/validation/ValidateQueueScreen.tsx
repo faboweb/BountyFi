@@ -232,6 +232,8 @@ export function ValidateQueueScreen() {
     onSuccess: (data: { penaltyAlerts: string[] }) => {
       setShowTxPendingModal(false);
       setPendingVotes([]);
+      setQueue([]);
+      setCurrentIndex(0);
       if (data?.penaltyAlerts?.length) {
         Alert.alert('Spot check', data.penaltyAlerts.join('\n\n'), [{ text: 'OK' }]);
       }

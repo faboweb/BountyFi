@@ -38,16 +38,23 @@ serve(async (req) => {
         const contract = new ethers.Contract(BOUNTYFI_ADDRESS, BOUNTYFI_ABI, provider)
 
         if (event === "sync_campaign") {
-            const { campaignId, transactionHash } = eventData
-            console.log(`[indexer] Syncing campaign ${campaignId}, tx: ${transactionHash}`)
-            
+            const { campaignId, transactionHash, userOpHash } = eventData
+            console.log(`[indexer] Syncing campaign ${campaignId}, tx: ${transactionHash}, userOp: ${userOpHash}`)
+
             const camp = await contract.campaigns(campaignId)
             console.log(`[indexer] Campaign data from chain:`, camp)
 
             // Get sender from transaction
-            const tx = await provider.getTransaction(transactionHash)
-            const sender = tx?.from
-            console.log(`[indexer] Transaction sender: ${sender}`)
+            let sender = null
+            if (transactionHash) {
+                try {
+                    const tx = await provider.getTransaction(transactionHash)
+                    sender = tx?.from
+                    console.log(`[indexer] Transaction sender: ${sender}`)
+                } catch (txErr) {
+                    console.warn(`[indexer] Could not fetch transaction ${transactionHash}:`, txErr)
+                }
+            }
 
             let userId = null
             if (sender) {
@@ -79,7 +86,7 @@ serve(async (req) => {
 
             // Find matching pending row by tx_hash, userOpHash (stored in tx_hash column), or fallback to donator_id
             let pending = null
-            
+
             // Try matching by exact tx_hash first
             if (transactionHash) {
                 const { data: pendingByTx } = await supabaseClient
@@ -90,6 +97,18 @@ serve(async (req) => {
                     .maybeSingle()
                 pending = pendingByTx
                 console.log(`[indexer] Found pending by tx_hash:`, pending?.id)
+            }
+
+            // Try matching by userOpHash (stored in tx_hash column initially)
+            if (!pending && userOpHash) {
+                const { data: pendingByOp } = await supabaseClient
+                    .from('campaigns')
+                    .select('*')
+                    .eq('tx_hash', userOpHash)
+                    .eq('status', 'pending_onchain')
+                    .maybeSingle()
+                pending = pendingByOp
+                console.log(`[indexer] Found pending by userOpHash:`, pending?.id)
             }
 
             // Fallback: find any pending campaign for this user (most recent)
@@ -128,6 +147,7 @@ serve(async (req) => {
 
             console.log(`[indexer] Chain payload:`, chainPayload)
 
+            let campaignUuid = pending?.id
             if (pending) {
                 // Update existing pending record, preserve title/description/sponsors
                 const { error: updateError } = await supabaseClient.from('campaigns')
@@ -144,18 +164,45 @@ serve(async (req) => {
                     ...chainPayload,
                     title: camp.title || `Campaign #${campaignId}`,
                 }
-                const { error: upsertError } = await supabaseClient.from('campaigns')
+                console.log(`[indexer] Upserting new campaign:`, JSON.stringify(newCampaign, null, 2))
+                const { data: inserted, error: upsertError } = await supabaseClient.from('campaigns')
                     .upsert(newCampaign, { onConflict: 'onchain_id' })
+                    .select('id')
+                    .single()
                 if (upsertError) {
                     console.error('[indexer] Upsert error:', upsertError)
                     throw upsertError
                 }
-                console.log(`[indexer] Created new campaign from chain`)
+                campaignUuid = inserted.id
+                console.log(`[indexer] Created new campaign from chain: ${campaignUuid}`)
+            }
+
+            // Sync prizes to campaign_prizes table for better relational parity
+            if (campaignUuid && prizeChest.length > 0) {
+                const prizeRows = prizeChest.map(p => ({
+                    campaign_id: campaignUuid,
+                    label: p.label,
+                    image: p.image,
+                    sponsor: p.sponsor,
+                    metadata_hash: p.metadataHash || '0x0000000000000000000000000000000000000000000000000000000000000000',
+                    amount: Number(p.amount) || 0,
+                    value: Number(p.value) || 0,
+                }))
+
+                const { error: prizeError } = await supabaseClient
+                    .from('campaign_prizes')
+                    .upsert(prizeRows, { onConflict: 'campaign_id,label,metadata_hash' })
+                if (prizeError) {
+                    console.warn('[indexer] Failed to sync prize table (non-fatal):', prizeError)
+                } else {
+                    console.log(`[indexer] Synced ${prizeRows.length} prizes to table`)
+                }
             }
         }
 
         if (event === "sync_submission") {
-            const { submissionId } = await req.json()
+            const { submissionId } = eventData
+            console.log(`[indexer] Syncing submission ${submissionId}`)
             const sub = await contract.submissions(submissionId)
 
             // Map status enum to string

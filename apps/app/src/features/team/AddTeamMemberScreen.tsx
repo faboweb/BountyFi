@@ -7,21 +7,33 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
-  Alert,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from '../../api/client';
-import { Colors, Typography, Spacing } from '../../theme/theme';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { ethers } from 'ethers';
+import { api, TRUSTNETWORK_ABI } from '../../api/client';
+import { Colors, Typography, Spacing, Shadows } from '../../theme/theme';
+import { TransactionModal, TransactionStatus } from '../../components/TransactionModal';
+import { getWallet } from '../../utils/contracts';
+import { CHAIN_CONFIG } from '../../config/chain';
+import { UserSearchResult } from '../../api/types';
 
 export function AddTeamMemberScreen() {
   const navigation = useNavigation();
   const queryClient = useQueryClient();
   const [usernameQuery, setUsernameQuery] = React.useState('');
   const [searchError, setSearchError] = React.useState<string | null>(null);
+  const [isSearching, setIsSearching] = React.useState(false);
+  const [foundUser, setFoundUser] = React.useState<UserSearchResult | null>(null);
+
+  // Transaction state
+  const [showTxModal, setShowTxModal] = React.useState(false);
+  const [txStatus, setTxStatus] = React.useState<TransactionStatus>('idle');
+  const [txHash, setTxHash] = React.useState<string | undefined>();
+  const [txError, setTxError] = React.useState<string | undefined>();
 
   const { data: user } = useQuery({
     queryKey: ['user', 'me'],
@@ -29,39 +41,74 @@ export function AddTeamMemberScreen() {
   });
   const trustedIds = user?.trusted_network_ids ?? [];
 
-  const addMemberMutation = useMutation({
-    mutationFn: (userId: string) => api.users.addTrustedMember(userId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
-      Alert.alert('Added', 'Member added to your team.', [
-        { text: 'OK', onPress: () => navigation.goBack() },
-      ]);
-    },
-    onError: (err: Error) => {
-      Alert.alert('Error', err.message || 'Could not add member.');
-    },
-  });
-
-  const handleAddByUsername = async () => {
+  const handleSearch = async () => {
     const q = usernameQuery.trim();
     setSearchError(null);
+    setFoundUser(null);
     if (!q) {
       setSearchError('Enter a username or name.');
       return;
     }
+    setIsSearching(true);
     try {
       const result = await api.users.searchByUsername(q);
       if (result) {
         if (trustedIds.includes(result.id)) {
           setSearchError('This person is already in your team.');
-          return;
+        } else if (result.id === user?.id) {
+            setSearchError('You cannot trust yourself.');
+        } else {
+          setFoundUser(result);
         }
-        addMemberMutation.mutate(result.id);
       } else {
         setSearchError('No user found. Try another username.');
       }
     } catch (e) {
       setSearchError('Search failed. Please try again.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleInitiateRequest = () => {
+    if (!foundUser) return;
+    setTxStatus('idle');
+    setTxHash(undefined);
+    setTxError(undefined);
+    setShowTxModal(true);
+  };
+
+  const handleSendRequest = async () => {
+    if (!foundUser || !foundUser.email /* email as placeholder for addr resolution */) return;
+    
+    // In a real app, we'd have the wallet address from the search result.
+    // If searchByUsername doesn't return address, we need to fetch user profile or ensure it's in result.
+    // Assuming search result has it or we use placeholder.
+    const targetAddress = (foundUser as any).wallet_address || '0x0000000000000000000000000000000000000000';
+    if (targetAddress === '0x0000000000000000000000000000000000000000') {
+        setTxError('This user does not have a linked wallet.');
+        setTxStatus('error');
+        return;
+    }
+
+    setTxStatus('pending');
+    try {
+      const wallet = await getWallet();
+      const contract = new ethers.Contract(CHAIN_CONFIG.BOUNTYFI_ADDRESS, TRUSTNETWORK_ABI, wallet);
+      
+      const tx = await contract.sendTrustRequest(targetAddress);
+      setTxHash(tx.hash);
+      await tx.wait();
+      
+      // Sync with DB
+      await api.users.syncTrustRequest(foundUser.id, tx.hash);
+      
+      setTxStatus('success');
+      queryClient.invalidateQueries({ queryKey: ['teamRequests'] });
+    } catch (e: any) {
+      console.error('Contract error:', e);
+      setTxError(e.message || 'Failed to send request');
+      setTxStatus('error');
     }
   };
 
@@ -71,7 +118,7 @@ export function AddTeamMemberScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Text style={styles.backBtnText}>←</Text>
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Add team member</Text>
+        <Text style={styles.headerTitle}>Invite to Team</Text>
         <View style={styles.backBtn} />
       </View>
 
@@ -87,36 +134,65 @@ export function AddTeamMemberScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.section}>
-            <Text style={styles.hint}>Enter their username, name, or email to add them to your team.</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Username, name, or email"
-              placeholderTextColor={Colors.textGray}
-              value={usernameQuery}
-              onChangeText={(t) => {
-                setUsernameQuery(t);
-                setSearchError(null);
-              }}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+            <Text style={styles.hint}>Search for a friend by email or name to invite them to your Trusted Network.</Text>
+            <View style={styles.searchRow}>
+                <TextInput
+                style={styles.input}
+                placeholder="Email, name, or username"
+                placeholderTextColor={Colors.textGray}
+                value={usernameQuery}
+                onChangeText={(t) => {
+                    setUsernameQuery(t);
+                    setSearchError(null);
+                    setFoundUser(null);
+                }}
+                autoCapitalize="none"
+                autoCorrect={false}
+                />
+                <TouchableOpacity 
+                    style={styles.searchBtn} 
+                    onPress={handleSearch}
+                    disabled={isSearching}
+                >
+                    {isSearching ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.searchBtnText}>🔍</Text>}
+                </TouchableOpacity>
+            </View>
+            
             {searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
-            <TouchableOpacity
-              style={[styles.primaryButton, addMemberMutation.isPending && styles.primaryButtonDisabled]}
-              onPress={handleAddByUsername}
-              disabled={addMemberMutation.isPending}
-              activeOpacity={0.8}
-            >
-              {addMemberMutation.isPending ? (
-                <ActivityIndicator size="small" color={Colors.white} />
-              ) : (
-                <Text style={styles.primaryButtonText}>Add by username</Text>
-              )}
-            </TouchableOpacity>
+
+            {foundUser && (
+                <View style={styles.foundUserCard}>
+                    <View style={styles.avatarMini}>
+                        <Text style={styles.avatarMiniText}>{(foundUser.name || foundUser.email || 'U')[0].toUpperCase()}</Text>
+                    </View>
+                    <View style={styles.userInfo}>
+                        <Text style={styles.userName}>{foundUser.name || 'Anonymous'}</Text>
+                        <Text style={styles.userEmail}>{foundUser.email}</Text>
+                    </View>
+                    <TouchableOpacity style={styles.inviteButton} onPress={handleInitiateRequest}>
+                        <Text style={styles.inviteButtonText}>Invite</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
           </View>
           <View style={{ height: 100 }} />
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <TransactionModal
+        visible={showTxModal}
+        status={txStatus}
+        title="Invite to Trusted Network"
+        description={`Send a trust request to ${foundUser?.name || foundUser?.email}. They must accept to join your team.`}
+        onConfirm={handleSendRequest}
+        onClose={() => {
+            setShowTxModal(false);
+            if (txStatus === 'success') navigation.goBack();
+        }}
+        txHash={txHash}
+        errorMessage={txError}
+        confirmLabel="Send Invite"
+      />
     </SafeAreaView>
   );
 }
@@ -167,8 +243,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     lineHeight: 20,
   },
+  searchRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
   input: {
-    width: '100%',
+    flex: 1,
     height: 48,
     borderWidth: 2,
     borderColor: Colors.creamDark,
@@ -177,28 +258,66 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: Colors.ivoryBlueDark,
     backgroundColor: Colors.white,
-    marginBottom: Spacing.md,
+  },
+  searchBtn: {
+    width: 48,
+    height: 48,
+    backgroundColor: Colors.ivoryBlue,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchBtnText: {
+    fontSize: 18,
   },
   errorText: {
     fontSize: 13,
     color: Colors.error,
     marginBottom: Spacing.sm,
   },
-  primaryButton: {
-    width: '100%',
-    height: 52,
-    borderRadius: 12,
-    backgroundColor: Colors.ivoryBlue,
-    justifyContent: 'center',
+  foundUserCard: {
+    flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: 16,
+    ...Shadows.card,
     marginTop: Spacing.sm,
   },
-  primaryButtonDisabled: {
-    opacity: 0.7,
+  avatarMini: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.ivoryBlueLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing.md,
   },
-  primaryButtonText: {
+  avatarMiniText: {
     color: Colors.white,
+    fontWeight: 'bold',
+  },
+  userInfo: {
+    flex: 1,
+  },
+  userName: {
+    fontSize: 16,
     fontWeight: '700',
-    fontSize: 17,
+    color: Colors.navyBlack,
+  },
+  userEmail: {
+    fontSize: 12,
+    color: Colors.textGray,
+  },
+  inviteButton: {
+    backgroundColor: Colors.ivoryBlue,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  inviteButtonText: {
+    color: Colors.white,
+    fontWeight: '800',
+    fontSize: 14,
   },
 });

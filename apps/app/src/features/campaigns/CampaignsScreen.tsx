@@ -31,7 +31,7 @@ function displayNameFromUser(email: string | undefined): string {
 export function CampaignsScreen() {
   const navigation = useNavigation<NavigationProp>();
   const { user } = useAuth();
-  const userName = displayNameFromUser(user?.email);
+  const userName = user?.name || displayNameFromUser(user?.email);
 
   const winkScale = React.useRef(new Animated.Value(1)).current;
   const smileScale = React.useRef(new Animated.Value(1)).current;
@@ -114,11 +114,11 @@ export function CampaignsScreen() {
         {/* Stats grid */}
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>247</Text>
+            <Text style={styles.statValue}>{user?.tickets ?? 0}</Text>
             <Text style={styles.statLabel}>Tickets Earned</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>12</Text>
+            <Text style={styles.statValue}>{user?.streak ?? 0}</Text>
             <Text style={styles.statLabel}>Day Streak</Text>
           </View>
         </View>
@@ -162,26 +162,29 @@ export function CampaignsScreen() {
           const isCleanup = item.quest_type === 'uniserv_cleanup';
           const isNoBurn = item.quest_type === 'no_burn';
           const isBanPlastic = item.quest_type === 'ban_plastic';
+          const isPending = item.status === 'pending_onchain';
           const hasDonations = (item.prize_total ?? 0) > 0;
-          const borderColor = !hasDonations ? '#CCCCCC' : (isCleanup ? Colors.grass : isNoBurn ? Colors.coral : isBanPlastic ? Colors.lavender : Colors.ivoryBlue);
-          const progress = !hasDonations ? 0 : (isCleanup ? 65 : isNoBurn ? 30 : isBanPlastic ? 45 : 50);
+          const borderColor = isPending ? Colors.textGray : (!hasDonations ? '#CCCCCC' : (isCleanup ? Colors.grass : isNoBurn ? Colors.coral : isBanPlastic ? Colors.lavender : Colors.ivoryBlue));
+          const progress = isPending ? 0 : (!hasDonations ? 0 : (isCleanup ? 65 : isNoBurn ? 30 : isBanPlastic ? 45 : 50));
           const subtitle =
-            isCleanup
-              ? 'Before & after (min 1 min). One participation only.'
-              : isNoBurn
-                ? 'One photo per day, 3 months. Photo + GPS.'
-                : isBanPlastic
-                  ? 'Selfie + photo with tote/veggies. Chiang Mai.'
-                  : item.description;
+            isPending
+              ? 'Transaction is being confirmed on the blockchain...'
+              : (isCleanup
+                ? 'Before & after (min 1 min). One participation only.'
+                : isNoBurn
+                  ? 'One photo per day, 3 months. Photo + GPS.'
+                  : isBanPlastic
+                    ? 'Selfie + photo with tote/veggies. Chiang Mai.'
+                    : item.description);
 
           return (
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => navigation.navigate('CampaignDetail', { campaignId: item.id })}
-              style={[styles.campaignCard, { borderLeftColor: borderColor, opacity: hasDonations ? 1 : 0.7 }]}
+              style={[styles.campaignCard, { borderLeftColor: borderColor, opacity: (hasDonations || isPending) ? 1 : 0.7 }]}
             >
-              <Text style={[styles.campaignTitle, !hasDonations && { color: '#888888' }]}>
-                {isCleanup ? '🌳' : isNoBurn ? '🚭' : isBanPlastic ? '🛍️' : '📍'} {item.title}
+              <Text style={[styles.campaignTitle, (!hasDonations && !isPending) && { color: '#888888' }]}>
+                {isPending ? '⌛' : (isCleanup ? '🌳' : isNoBurn ? '🚭' : isBanPlastic ? '🛍️' : '📍')} {item.title}
               </Text>
               <View style={styles.campaignProgress}>
                 <View style={styles.progressBar}>

@@ -51,11 +51,12 @@ serve(async (req) => {
         }
 
         if (action === 'CREATE_CAMPAIGN') {
-            const { user_id, title, description, prize_total, min_funding_thb, requires_face_recognition, start_date, end_date, checkpoints, tx_hash } = data
+            const { user_id, title, description, prize_total, min_funding_thb, requires_face_recognition, start_date, end_date, checkpoints, tx_hash, status, quest_type, prize_chest, sponsors, image_url } = data
             if (!title) throw new Error("title is required")
             const row = {
                 title,
                 description: description ?? null,
+                image_url: image_url ?? null,
                 prize_total: prize_total ?? null,
                 prize_pool: prize_total ?? null,
                 min_funding_thb: min_funding_thb ?? null,
@@ -64,10 +65,13 @@ serve(async (req) => {
                 end_date: end_date ?? null,
                 deadline: end_date ?? null,
                 checkpoints: checkpoints ?? null,
-                status: 'pending_onchain',
+                status: status || 'pending_onchain',
                 donator_id: user_id ?? null,
                 current_pool: prize_total ?? 0,
                 tx_hash: tx_hash ?? null,
+                quest_type: quest_type ?? null,
+                prize_chest: prize_chest ?? [],
+                sponsors: sponsors ?? [],
                 // Required by DB constraints
                 campaign_type: 'SINGLE_PHOTO',
                 reward_amount: 0,
@@ -123,44 +127,7 @@ serve(async (req) => {
             return new Response(JSON.stringify(prize ?? { updated: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
         }
 
-        if (action === 'ADD_DONATION') {
-            const { campaign_id, donator_id, amount, currency, tx_hash } = data
 
-            // 0. Optional: Verify TX on-chain if hash provided
-            if (tx_hash && currency === 'ETH') {
-                const provider = new ethers.providers.JsonRpcProvider("https://sepolia.base.org")
-                const receipt = await provider.getTransactionReceipt(tx_hash)
-                if (receipt && receipt.status === 0) {
-                    throw new Error("Transaction reverted on-chain")
-                }
-            }
-
-            // 1. Record Donation
-            const { data: donation, error: donationError } = await supabaseClient
-                .from('donations')
-                .insert({ campaign_id, donator_id, amount, currency, tx_hash })
-                .select()
-                .single()
-            if (donationError) throw donationError
-
-            // 2. Update Campaign Pool
-            const { data: campaign, error: fetchError } = await supabaseClient
-                .from('campaigns')
-                .select('current_pool')
-                .eq('id', campaign_id)
-                .single()
-            if (fetchError) throw fetchError
-
-            const newPool = (Number(campaign.current_pool) || 0) + Number(amount)
-
-            const { error: updateError } = await supabaseClient
-                .from('campaigns')
-                .update({ current_pool: newPool })
-                .eq('id', campaign_id)
-            if (updateError) throw updateError
-
-            return new Response(JSON.stringify({ donation, newPool }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
-        }
 
         throw new Error("Invalid action")
 

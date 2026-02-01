@@ -27,6 +27,8 @@ import {
   FaceVerificationEnrollRequest,
   FaceVerificationStatusResponse,
   CreateCampaignRequest,
+  CreateDonationRequest,
+  TeamRequest,
 } from './types';
 
 // Create axios instance
@@ -38,6 +40,11 @@ const createApiClient = (): AxiosInstance => {
       'apikey': API_CONFIG.SUPABASE_PUBLISHABLE_KEY,
     },
   });
+
+  // Safety check for Anon Key format
+  if (API_CONFIG.SUPABASE_PUBLISHABLE_KEY && !API_CONFIG.SUPABASE_PUBLISHABLE_KEY.startsWith('eyJ')) {
+    console.error('CRITICAL WARNING: Supabase Anon Key does not look like a valid JWT (should start with "eyJ"). Check your .env file.');
+  }
 
   // Add auth token to requests
   client.interceptors.request.use(async (config) => {
@@ -53,9 +60,17 @@ const createApiClient = (): AxiosInstance => {
   client.interceptors.response.use(
     (response) => response,
     async (error) => {
-      if (error.response?.status === 401 && !(error.config as any)?.skipAuthRedirect) {
-        await authStorage.clear();
-        notifyUnauthorized(); // Auth context sets user null so login screen shows
+      if (error.response?.status === 401) {
+        // Distinguish between invalid Anon Key and expired User Session
+        const msg = error.response.data?.message;
+        if (msg === 'Invalid API key' || msg === 'Invalid JWT') {
+          console.error('[API] 401 Unauthorized - Likely invalid Supabase Anon Key:', msg);
+        }
+
+        if (!(error.config as any)?.skipAuthRedirect) {
+          await authStorage.clear();
+          notifyUnauthorized(); // Auth context sets user null so login screen shows
+        }
       }
       return Promise.reject(error);
     }
@@ -108,23 +123,59 @@ export const campaignsApi = {
   async getAll(): Promise<Campaign[]> {
     const { data, error } = await supabase
       .from('campaigns')
-      .select('*')
-      .in('status', ['active', 'upcoming', 'ended'])
+      .select('*, donations(amount)')
+      .in('status', ['active', 'upcoming', 'ended', 'pending_onchain'])
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return data as Campaign[];
+
+    // Aggregate prize_total from donations
+    return data.map((campaign: any) => {
+      const donatedTotal = campaign.donations?.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0) || 0;
+      return {
+        ...campaign,
+        prize_total: (campaign.prize_total || 0) + donatedTotal,
+      };
+    }) as Campaign[];
   },
 
   async getById(id: string): Promise<Campaign> {
-    const { data, error } = await supabase
+    // Try UUID first, then fall back to onchain_id
+    const query = supabase
       .from('campaigns')
-      .select('*')
-      .eq('id', id)
-      .single();
+      .select('*, donations(amount), campaign_prizes(*)');
+
+    let { data, error } = await query.eq('id', id).maybeSingle();
+
+    if (error || !data) {
+      const { data: byOnchain, error: err2 } = await query.eq('onchain_id', id).maybeSingle();
+      data = byOnchain;
+      error = err2;
+    }
 
     if (error) throw error;
-    return data as Campaign;
+    if (!data) throw new Error('Campaign not found');
+
+    const campaignData = data as any;
+    const donatedTotal = campaignData.donations?.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0) || 0;
+
+    // Map campaign_prizes to prize_chest if not already present
+    const dbPrizes = campaignData.campaign_prizes?.map((p: any) => ({
+      label: p.label,
+      image: p.image,
+      sponsor: p.sponsor,
+      amount: p.amount,
+      value: p.value,
+      metadataHash: p.metadata_hash,
+    })) || [];
+
+    return {
+      ...campaignData,
+      prize_total: (campaignData.prize_total || 0) + donatedTotal,
+      prize_chest: campaignData.prize_chest && campaignData.prize_chest.length > 0
+        ? campaignData.prize_chest
+        : dbPrizes,
+    } as Campaign;
   },
 
   async create(request: CreateCampaignRequest): Promise<Campaign> {
@@ -149,6 +200,11 @@ export const campaignsApi = {
       checkpoints: request.checkpoints,
       status: request.status || 'active',
       onchain_id: request.onchain_id,
+      quest_type: request.quest_type,
+      prize_chest: request.prize_chest,
+      sponsors: request.sponsors,
+      tx_hash: request.tx_hash,
+      image_url: request.image_url,
     };
 
     const { data, error } = await supabase.functions.invoke('manage_campaign', {
@@ -358,6 +414,95 @@ export const usersApi = {
     const response = await apiClient.post<{ diamonds_lost: number; trusted_network_lost_ticket: boolean }>('/users/jury/audit-penalty');
     return response.data;
   },
+
+  // Trust Network Requests
+  async getTrustRequests(): Promise<TeamRequest[]> {
+    const savedUser = await authStorage.getUser();
+    if (!savedUser?.id) return [];
+
+    const { data, error } = await supabase
+      .from('team_requests')
+      .select('*, sender:sender_id(*), receiver:receiver_id(*)')
+      .or(`sender_id.eq.${savedUser.id},receiver_id.eq.${savedUser.id}`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return data as TeamRequest[];
+  },
+
+  async syncTrustRequest(receiverId: string, txHash: string): Promise<void> {
+    const savedUser = await authStorage.getUser();
+    if (!savedUser?.id) throw new Error('Not authenticated');
+
+    const { error } = await supabase
+      .from('team_requests')
+      .upsert({
+        sender_id: savedUser.id,
+        receiver_id: receiverId,
+        status: 'pending',
+        tx_hash: txHash,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'sender_id,receiver_id' });
+
+    if (error) throw error;
+  },
+
+  async updateTrustRequestStatus(requestId: string, status: 'accepted' | 'declined', txHash?: string): Promise<void> {
+    const { error } = await supabase
+      .from('team_requests')
+      .update({ status, tx_hash: txHash, updated_at: new Date().toISOString() })
+      .eq('id', requestId);
+
+    if (error) throw error;
+  },
+};
+
+// Trust Network ABI updates
+export const TRUSTNETWORK_ABI = [
+  "function sendTrustRequest(address _trustee) external",
+  "function acceptTrustRequest(address _sender) external",
+  "function declineTrustRequest(address _sender) external",
+  "function pendingRequests(address sender, address receiver) view returns (bool)",
+  "function isConnection(address _a, address _b) view returns (bool)",
+  "function trustCircles(address) view returns (address[])",
+  "function reverseTrustCircles(address) view returns (address[])",
+  "function diamonds(address) view returns (uint256)"
+];
+
+// Donations API
+export const donationsApi = {
+  async getAll(): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('donations')
+      .select('*, campaigns(title)');
+    if (error) throw error;
+    return data || [];
+  },
+
+  async create(request: CreateDonationRequest): Promise<any> {
+    let userId: string | null = null;
+    let walletAddress: string | null = null;
+    try {
+      const savedUser = await authStorage.getUser();
+      userId = savedUser?.id ?? null;
+      walletAddress = savedUser?.wallet_address ?? null;
+    } catch (_) {
+      // Proceed without user info
+    }
+
+    const { data, error } = await supabase.functions.invoke('donate', {
+      body: {
+        ...request,
+        donator_id: userId,
+        donator_address: walletAddress
+      },
+      headers: edgeFunctionHeaders(),
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
 };
 
 // Leaderboard API
@@ -449,10 +594,13 @@ export const referralsApi = {
   },
 
   async getMyCode(): Promise<ReferralCode> {
-    const response = await apiClient.get<ReferralCode>('/referrals/my-code', {
-      skipAuthRedirect: true, // avoid 401 from this endpoint logging user out and looping Profile → root
-    } as any);
-    return response.data;
+    const { data, error } = await supabase.rpc('get_my_referral_code');
+    if (error) {
+      console.warn('get_my_referral_code RPC failed', error);
+      // Fallback/Non-blocking
+      return { code: '', referrals_count: 0 };
+    }
+    return data as ReferralCode;
   },
 };
 
@@ -497,6 +645,7 @@ export const api = API_CONFIG.USE_MOCK_API
   : {
     auth: authApi,
     campaigns: campaignsApi,
+    donations: donationsApi,
     submissions: submissionsApi,
     validations: validationsApi,
     users: usersApi,

@@ -14,50 +14,39 @@ import {
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { AppStackParamList } from '../../navigation/AppNavigator';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Button } from '../../components/Button';
-import { CameraCapture } from '../../components/CameraCapture';
+import { MediaPicker } from '../../components/MediaPicker';
 
-type NavigationProp = NativeStackNavigationProp<AppStackParamList, 'DonateToQuest'>;
-type RouteProp = RouteProp<AppStackParamList, 'DonateToQuest'>;
+
+type DonateScreenNavigationProp = NativeStackNavigationProp<AppStackParamList, 'DonateToQuest'>;
+type DonateScreenRouteProp = RouteProp<AppStackParamList, 'DonateToQuest'>;
 
 const MIN_VALUE_THB = 50;
 
 const DONATION_TYPES = [
-  { id: 'money', label: 'Money', emoji: '💵' },
-  { id: 'vouchers', label: 'Vouchers', emoji: '🎫' },
-  { id: 'coffee', label: 'Coffee', emoji: '☕' },
-  { id: 'meals', label: 'Meals', emoji: '🍽️' },
-  { id: 'hotel', label: 'Hotel stays', emoji: '🏨' },
-] as const;
-
-const GOODS_HASHTAGS = [
-  { id: 'money', label: '#money' },
-  { id: 'vouchers', label: '#vouchers' },
-  { id: 'coffee', label: '#coffee' },
-  { id: 'meals', label: '#meals' },
-  { id: 'hotel', label: '#hotel' },
-  { id: 'others', label: '#others' },
+  { id: 'tokens', label: 'Tokens', emoji: '🪙' },
+  { id: 'voucher', label: 'Vouchers', emoji: '🎫' },
 ] as const;
 
 export function DonateToQuestScreen() {
-  const navigation = useNavigation<NavigationProp>();
-  const route = useRoute<RouteProp>();
+  const navigation = useNavigation<DonateScreenNavigationProp>();
+  const route = useRoute<DonateScreenRouteProp>();
+  const queryClient = useQueryClient();
   const { campaignId } = route.params;
 
   const [companyName, setCompanyName] = React.useState('');
   const [brandPhotoUri, setBrandPhotoUri] = React.useState<string | null>(null);
-  const [donationType, setDonationType] = React.useState<string>('money');
-  const [amount, setAmount] = React.useState('');
-  const [details, setDetails] = React.useState('');
-  const [goodsHashtags, setGoodsHashtags] = React.useState<Set<string>>(new Set());
-  const [goodsCustomText, setGoodsCustomText] = React.useState('');
-  const [goodsPhotoUri, setGoodsPhotoUri] = React.useState<string | null>(null);
+  const [donationType, setDonationType] = React.useState<'tokens' | 'voucher'>('tokens');
+  const [amount, setAmount] = React.useState(''); // Amount per item
+  const [quantity, setQuantity] = React.useState('1'); // Number of items
+  const [voucherName, setVoucherName] = React.useState('');
+  const [voucherImageUri, setVoucherImageUri] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState('');
-  const [photoModal, setPhotoModal] = React.useState<'brand' | 'goods' | null>(null);
+  const [photoModal, setPhotoModal] = React.useState<'brand' | 'voucher' | null>(null);
 
   // Transaction modal flow
   const [showConfirmModal, setShowConfirmModal] = React.useState(false);
@@ -70,30 +59,18 @@ export function DonateToQuestScreen() {
     queryFn: () => api.campaigns.getById(campaignId),
   });
 
-  const toggleGoodsHashtag = (id: string) => {
-    setGoodsHashtags((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const isMoney = donationType === 'money';
-  const amountNum = parseInt(amount, 10) || 0;
+  const isTokens = donationType === 'tokens';
+  const valNum = parseFloat(amount) || 0;
+  const qtyNum = parseInt(quantity, 10) || 0;
   const hasCompanyName = companyName.trim().length > 0;
   const hasBrandPhoto = brandPhotoUri != null;
-  const hasGoodsDescription = goodsHashtags.size > 0 || goodsCustomText.trim().length > 0;
-  const hasGoodsPhoto = goodsPhotoUri != null;
-  const hasAmount = isMoney ? amountNum > 0 : true;
-  const hasDetails = !isMoney ? details.trim().length > 0 : true;
-  const isValid =
-    hasCompanyName &&
-    hasBrandPhoto &&
-    hasGoodsDescription &&
-    hasGoodsPhoto &&
-    hasAmount &&
-    (isMoney || hasDetails);
+  
+  const isValid = 
+    hasCompanyName && 
+    hasBrandPhoto && 
+    valNum > 0 &&
+    qtyNum > 0 &&
+    (isTokens || voucherName.trim().length > 0 && voucherImageUri != null);
 
   const handleDonate = () => {
     if (!hasCompanyName) {
@@ -104,21 +81,23 @@ export function DonateToQuestScreen() {
       Alert.alert('Brand photo', 'Please add a photo of your brand.');
       return;
     }
-    if (!hasGoodsDescription) {
-      Alert.alert('What you\'re donating', 'Select hashtags for the goods or describe what you\'re donating.');
+    if (valNum <= 0) {
+      Alert.alert('Amount/Quantity', 'Please enter a valid amount.');
       return;
     }
-    if (!hasGoodsPhoto) {
-      Alert.alert('Photo of goods', 'Please add a photo of the donated goods.');
+    if (qtyNum <= 0) {
+      Alert.alert('Quantity', 'Please enter a valid quantity.');
       return;
     }
-    if (isMoney && amountNum <= 0) {
-      Alert.alert('Amount', 'Enter an amount (minimum value 50 THB recommended).');
-      return;
-    }
-    if (!isMoney && !details.trim()) {
-      Alert.alert('Details', 'Describe what you\'re offering (e.g. 10 coffees, 2 night stay).');
-      return;
+    if (!isTokens) {
+      if (!voucherName.trim()) {
+        Alert.alert('Voucher Name', 'Please enter the name of the voucher.');
+        return;
+      }
+      if (!voucherImageUri) {
+        Alert.alert('Voucher Image', 'Please add an image of the voucher.');
+        return;
+      }
     }
     setShowConfirmModal(true);
   };
@@ -128,8 +107,21 @@ export function DonateToQuestScreen() {
     setIsSubmitting(true);
     setShowTxPendingModal(true);
     try {
-      // TODO: Add API/blockchain call when donation backend is ready
-      await new Promise((r) => setTimeout(r, 1500));
+      await api.donations.create({
+        campaign_id: campaignId,
+        amount: valNum, 
+        quantity: qtyNum,
+        company_name: companyName,
+        type: donationType,
+        details: isTokens ? 'USDC Donation' : voucherName,
+        message: message,
+        image_url: isTokens ? (brandPhotoUri || undefined) : (voucherImageUri || undefined),
+        currency: isTokens ? 'USDC' : 'ITEM',
+      });
+
+      queryClient.invalidateQueries({ queryKey: ['campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['campaign', campaignId] });
+
       setShowTxPendingModal(false);
       setShowTxSuccessModal(true);
     } catch (err: any) {
@@ -148,7 +140,7 @@ export function DonateToQuestScreen() {
   if (!campaign) {
     return (
       <View style={[styles.container, styles.center]}>
-        <Text style={styles.loadingText}>Loading...</Text>
+        <ActivityIndicator size="large" color={Colors.ivoryBlue} />
       </View>
     );
   }
@@ -170,7 +162,7 @@ export function DonateToQuestScreen() {
       >
         <View style={styles.questCard}>
           <Text style={styles.questTitle}>{campaign.title}</Text>
-          <Text style={styles.questMeta}>Pool: {campaign.prize_total} THB</Text>
+          <Text style={styles.questMeta}>Goal: {campaign.reward_amount ? (Number(campaign.reward_amount) / 1e6).toFixed(0) : '0'} USDC</Text>
         </View>
 
         <View style={styles.inputGroup}>
@@ -201,19 +193,22 @@ export function DonateToQuestScreen() {
               style={styles.addPhotoBox}
               onPress={() => setPhotoModal('brand')}
             >
-              <Text style={styles.addPhotoEmoji}>📷</Text>
-              <Text style={styles.addPhotoText}>Add photo of your brand</Text>
+              <Text style={styles.addPhotoEmoji}>📤</Text>
+              <Text style={styles.addPhotoText}>Upload brand photo</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        <Text style={styles.sectionLabel}>What are you donating?</Text>
+        <Text style={styles.sectionLabel}>Category</Text>
         <View style={styles.typeRow}>
           {DONATION_TYPES.map((t) => (
             <TouchableOpacity
               key={t.id}
               style={[styles.typeChip, donationType === t.id && styles.typeChipSelected]}
-              onPress={() => setDonationType(t.id)}
+              onPress={() => {
+                setDonationType(t.id as any);
+                setAmount('');
+              }}
             >
               <Text style={styles.typeEmoji}>{t.emoji}</Text>
               <Text style={[styles.typeLabel, donationType === t.id && styles.typeLabelSelected]}>{t.label}</Text>
@@ -221,96 +216,106 @@ export function DonateToQuestScreen() {
           ))}
         </View>
 
-        {isMoney && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Amount (THB)</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Any amount"
-              placeholderTextColor={Colors.textGray}
-              value={amount}
-              onChangeText={setAmount}
-              keyboardType="numeric"
-            />
-          </View>
-        )}
-
-        {!isMoney && (
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Details</Text>
-            <TextInput
-              style={[styles.input, styles.inputMultiline]}
-              placeholder="e.g. 10 free coffees, 2-night hotel stay, meal vouchers..."
-              placeholderTextColor={Colors.textGray}
-              value={details}
-              onChangeText={setDetails}
-              multiline
-              numberOfLines={2}
-            />
-          </View>
-        )}
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Hashtagged goods or describe what you're donating *</Text>
-          <Text style={styles.inputHint}>Select hashtags below or write your own description.</Text>
-          <View style={styles.tagRow}>
-            {GOODS_HASHTAGS.map((t) => (
-              <TouchableOpacity
-                key={t.id}
-                style={[styles.tagChip, goodsHashtags.has(t.id) && styles.tagChipSelected]}
-                onPress={() => toggleGoodsHashtag(t.id)}
-              >
-                <Text style={[styles.tagLabel, goodsHashtags.has(t.id) && styles.tagLabelSelected]}>{t.label}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TextInput
-            style={[styles.input, styles.inputMultiline, styles.goodsCustomInput]}
-            placeholder="Or write what you're donating in your own words..."
-            placeholderTextColor={Colors.textGray}
-            value={goodsCustomText}
-            onChangeText={setGoodsCustomText}
-            multiline
-            numberOfLines={2}
-          />
-        </View>
-
-        <View style={styles.inputGroup}>
-          <Text style={styles.inputLabel}>Photo of the donated goods *</Text>
-          {goodsPhotoUri ? (
-            <View style={styles.photoRow}>
-              <Image source={{ uri: goodsPhotoUri }} style={styles.photoThumb} resizeMode="cover" />
-              <TouchableOpacity
-                style={styles.changePhotoBtn}
-                onPress={() => setPhotoModal('goods')}
-              >
-                <Text style={styles.changePhotoText}>Change</Text>
-              </TouchableOpacity>
+        {isTokens ? (
+          <>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Token</Text>
+              <View style={[styles.input, styles.disabledInput]}>
+                <Text style={styles.inputText}>USDC</Text>
+              </View>
             </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.addPhotoBox}
-              onPress={() => setPhotoModal('goods')}
-            >
-              <Text style={styles.addPhotoEmoji}>📦</Text>
-              <Text style={styles.addPhotoText}>Add photo of the donated goods</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {isMoney && (
-          <View style={styles.reminderBox}>
-            <Text style={styles.reminderText}>
-              Minimum value {MIN_VALUE_THB} THB recommended for donations.
-            </Text>
-          </View>
-        )}
-        {!isMoney && (
-          <View style={styles.reminderBox}>
-            <Text style={styles.reminderText}>
-              Value of donated goods should be at least {MIN_VALUE_THB} THB (reminder).
-            </Text>
-          </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Amount per prize (USDC) *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0.00"
+                placeholderTextColor={Colors.textGray}
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Quantity of prizes *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="1"
+                placeholderTextColor={Colors.textGray}
+                value={quantity}
+                onChangeText={setQuantity}
+                keyboardType="numeric"
+              />
+            </View>
+            {valNum > 0 && qtyNum > 0 && (
+              <View style={styles.totalBox}>
+                <Text style={styles.totalLabel}>Total Donation:</Text>
+                <Text style={styles.totalValue}>{(valNum * qtyNum).toFixed(2)} USDC</Text>
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Voucher Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Free Coffee, 10% Discount"
+                placeholderTextColor={Colors.textGray}
+                value={voucherName}
+                onChangeText={setVoucherName}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Voucher Image *</Text>
+              {voucherImageUri ? (
+                <View style={styles.photoRow}>
+                  <Image source={{ uri: voucherImageUri }} style={styles.photoThumb} resizeMode="cover" />
+                  <TouchableOpacity
+                    style={styles.changePhotoBtn}
+                    onPress={() => setPhotoModal('voucher')}
+                  >
+                    <Text style={styles.changePhotoText}>Change</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.addPhotoBox}
+                  onPress={() => setPhotoModal('voucher')}
+                >
+                  <Text style={styles.addPhotoEmoji}>🎫</Text>
+                  <Text style={styles.addPhotoText}>Upload voucher image</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Quantity *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="1"
+                placeholderTextColor={Colors.textGray}
+                value={quantity}
+                onChangeText={setQuantity}
+                keyboardType="numeric"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Value per voucher (Approx USD) *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="1.00"
+                placeholderTextColor={Colors.textGray}
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="numeric"
+              />
+            </View>
+            {valNum > 0 && qtyNum > 0 && (
+              <View style={styles.totalBox}>
+                <Text style={styles.totalLabel}>Total Value:</Text>
+                <Text style={styles.totalValue}>{(valNum * qtyNum).toFixed(2)} USD (Approx)</Text>
+              </View>
+            )}
+          </>
         )}
 
         <View style={styles.inputGroup}>
@@ -343,22 +348,20 @@ export function DonateToQuestScreen() {
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
-              {photoModal === 'brand' ? 'Photo of your brand' : 'Photo of donated goods'}
+              {photoModal === 'brand' ? 'Photo of your brand' : 'Voucher image'}
             </Text>
             <TouchableOpacity onPress={() => setPhotoModal(null)} style={styles.modalClose}>
               <Text style={styles.modalCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.cameraWrap}>
-            <CameraCapture
-              cameraType="back"
-              requireGPS={false}
-              onCapture={(uri) => {
+          <View style={styles.mediaPickerWrap}>
+            <MediaPicker
+              onSelect={(uri) => {
                 if (photoModal === 'brand') setBrandPhotoUri(uri);
-                else setGoodsPhotoUri(uri);
+                else setVoucherImageUri(uri);
                 setPhotoModal(null);
               }}
-              onError={(err) => Alert.alert('Camera', err)}
+              onError={(err) => Alert.alert('Upload Error', err)}
             />
           </View>
         </View>
@@ -398,17 +401,29 @@ export function DonateToQuestScreen() {
                   {DONATION_TYPES.find((t) => t.id === donationType)?.label ?? donationType}
                 </Text>
               </View>
-              {isMoney && (
-                <View style={styles.txModalRow}>
-                  <Text style={styles.txModalLabel}>Amount:</Text>
-                  <Text style={styles.txModalValue}>{amount} THB</Text>
-                </View>
+               {isTokens && (
+                <>
+                  <View style={styles.txModalRow}>
+                    <Text style={styles.txModalLabel}>Amount:</Text>
+                    <Text style={styles.txModalValue}>{qtyNum} x {valNum.toFixed(2)} USDC</Text>
+                  </View>
+                  <View style={styles.txModalRow}>
+                    <Text style={styles.txModalLabel}>Total:</Text>
+                    <Text style={styles.txModalValue}>{(qtyNum * valNum).toFixed(2)} USDC</Text>
+                  </View>
+                </>
               )}
-              {!isMoney && details && (
-                <View style={styles.txModalRow}>
-                  <Text style={styles.txModalLabel}>Details:</Text>
-                  <Text style={styles.txModalValue} numberOfLines={2}>{details}</Text>
-                </View>
+              {!isTokens && voucherName && (
+                <>
+                  <View style={styles.txModalRow}>
+                    <Text style={styles.txModalLabel}>Voucher:</Text>
+                    <Text style={styles.txModalValue}>{voucherName} (x{qtyNum})</Text>
+                  </View>
+                  <View style={styles.txModalRow}>
+                    <Text style={styles.txModalLabel}>Approx Value:</Text>
+                    <Text style={styles.txModalValue}>{(qtyNum * valNum).toFixed(2)} USD</Text>
+                  </View>
+                </>
               )}
             </View>
             <View style={styles.txModalActions}>
@@ -564,7 +579,35 @@ const styles = StyleSheet.create({
     borderColor: Colors.creamDark,
     ...Shadows.sm,
   },
+  disabledInput: {
+    backgroundColor: Colors.creamDark,
+    opacity: 0.8,
+  },
+  inputText: {
+    fontSize: 16,
+    color: Colors.ivoryBlueDark,
+  },
   inputMultiline: { minHeight: 72, textAlignVertical: 'top' },
+  totalBox: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.md,
+    backgroundColor: Colors.ivoryBlueLight + '20',
+    borderRadius: BorderRadius.lg,
+    marginTop: -Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.ivoryBlueDark,
+  },
+  totalValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: Colors.ivoryBlue,
+  },
   inputHint: { fontSize: 12, color: Colors.textGray, marginBottom: Spacing.xs },
   photoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   photoThumb: { width: 80, height: 80, borderRadius: BorderRadius.lg, backgroundColor: Colors.creamDark },
@@ -588,27 +631,7 @@ const styles = StyleSheet.create({
   },
   addPhotoEmoji: { fontSize: 32, marginBottom: Spacing.xs },
   addPhotoText: { fontSize: 14, color: Colors.textGray },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.sm },
-  tagChip: {
-    paddingVertical: Spacing.sm,
-    paddingHorizontal: Spacing.md,
-    borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.white,
-    borderWidth: 2,
-    borderColor: Colors.creamDark,
-    ...Shadows.sm,
-  },
-  tagChipSelected: { borderColor: Colors.ivoryBlue, backgroundColor: Colors.ivoryBlueLight + '20' },
-  tagLabel: { fontSize: 13, fontWeight: '600', color: Colors.ivoryBlueDark },
-  tagLabelSelected: { color: Colors.ivoryBlueDark },
   goodsCustomInput: { marginTop: Spacing.xs },
-  reminderBox: {
-    backgroundColor: Colors.ivoryBlueLight + '20',
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-  },
-  reminderText: { fontSize: 13, color: Colors.ivoryBlueDark },
   submitBtn: { marginTop: Spacing.md },
   modalContainer: { flex: 1, backgroundColor: Colors.cream },
   modalHeader: {
@@ -629,7 +652,7 @@ const styles = StyleSheet.create({
   },
   modalClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   modalCloseText: { fontSize: 20, color: Colors.ivoryBlueDark },
-  cameraWrap: { flex: 1, minHeight: 400 },
+  mediaPickerWrap: { flex: 1 },
   // Transaction modals
   txModalOverlay: {
     flex: 1,

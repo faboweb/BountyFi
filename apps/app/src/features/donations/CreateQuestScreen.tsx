@@ -23,11 +23,14 @@ import { useSendUserOperation, useWaitForUserOperation } from '@coinbase/cdp-hoo
 import { AppStackParamList } from '../../navigation/AppNavigator';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Button } from '../../components/Button';
-import { CameraCapture } from '../../components/CameraCapture';
+import { MediaPicker } from '../../components/MediaPicker';
+import { MapPicker } from '../../components/MapPicker';
 import { supabase } from '../../utils/supabase';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/context';
 import { CHAIN_CONFIG } from '../../config/chain';
+import { compressImage } from '../../utils/image';
+import { uploadCampaignImage } from '../../utils/uploadCampaignImage';
 
 const MIN_DONATION_THB = 50;
 const DEFAULT_REGION = { latitude: 18.7883, longitude: 98.9853, latitudeDelta: 0.05, longitudeDelta: 0.05 };
@@ -94,13 +97,6 @@ const GOODS_HASHTAGS = [
   { id: 'others', label: '#others' },
 ] as const;
 
-let MapView: any = null;
-let Marker: any = null;
-try {
-  const RM = require('react-native-maps');
-  MapView = RM.default;
-  Marker = RM.Marker;
-} catch (_) {}
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList, 'CreateQuest'>;
 
@@ -135,7 +131,6 @@ export function CreateQuestScreen() {
   const [pin, setPin] = React.useState<{ latitude: number; longitude: number } | null>(null);
   const [region, setRegion] = React.useState(DEFAULT_REGION);
   const [radius, setRadius] = React.useState('');
-  const [locationLoading, setLocationLoading] = React.useState(false);
 
   // Step 3
   const [companyName, setCompanyName] = React.useState('');
@@ -147,7 +142,8 @@ export function CreateQuestScreen() {
 
   const [created, setCreated] = React.useState(false);
   const [createdQuestTitle, setCreatedQuestTitle] = React.useState('');
-  const [photoModal, setPhotoModal] = React.useState<'brand' | 'goods' | null>(null);
+  const [photoModal, setPhotoModal] = React.useState<'brand' | 'goods' | 'quest' | null>(null);
+  const [questImageUri, setQuestImageUri] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     (async () => {
@@ -181,28 +177,6 @@ export function CreateQuestScreen() {
     });
   };
 
-  const useMyLocation = async () => {
-    setLocationLoading(true);
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Location', 'Permission needed to use GPS (same as for photo proof).');
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setPin({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-      setRegion((r) => ({ ...r, latitude: loc.coords.latitude, longitude: loc.coords.longitude }));
-    } catch (_) {
-      Alert.alert('Location', 'Could not get GPS location.');
-    } finally {
-      setLocationLoading(false);
-    }
-  };
-
-  const handleMapPress = (e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => {
-    const { latitude, longitude } = e.nativeEvent.coordinate;
-    setPin({ latitude, longitude });
-  };
 
   const today = React.useMemo(() => getToday(), []);
   const maxDate = React.useMemo(() => getMaxDate(), []);
@@ -285,6 +259,7 @@ export function CreateQuestScreen() {
       ],
       prize_chest: [], // Empty for basic quest, can add UI for prizes later
       sponsors: [], // Empty for now
+      image_url: questImageUri,
     };
 
     setPendingCampaignData(campaignData);
@@ -385,9 +360,24 @@ export function CreateQuestScreen() {
         throw new Error('Failed to parse campaign ID from event');
       }
 
+      // Upload quest image if present
+      let finalImageUrl = pendingCampaignData.image_url;
+      if (questImageUri) {
+        try {
+          console.log('[CreateQuest] Uploading quest image...');
+          const compressed = await compressImage(questImageUri);
+          finalImageUrl = await uploadCampaignImage(compressed);
+          console.log('[CreateQuest] Image uploaded:', finalImageUrl);
+        } catch (uploadErr) {
+          console.error('[CreateQuest] Image upload failed:', uploadErr);
+          // Proceed without image if upload fails
+        }
+      }
+
       // Create Supabase record AFTER blockchain confirmation
       await api.campaigns.create({
         ...pendingCampaignData,
+        image_url: finalImageUrl || undefined,
         status: 'pending_onchain',
         tx_hash: receipt.transactionHash,
       });
@@ -517,6 +507,27 @@ export function CreateQuestScreen() {
                 />
               </View>
               <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Quest Image (Optional)</Text>
+                <TouchableOpacity
+                  style={styles.imagePickerBtn}
+                  onPress={() => setPhotoModal('quest')}
+                  activeOpacity={0.8}
+                >
+                  {questImageUri ? (
+                    <View style={styles.selectedImageContainer}>
+                      <Image source={{ uri: questImageUri }} style={styles.selectedImage} />
+                      <View style={styles.imageOverlay}>
+                        <Text style={styles.imageOverlayText}>Change Photo</Text>
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={styles.imagePlaceholder}>
+                      <Text style={styles.imagePlaceholderText}>+ Add Quest Photo</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              </View>
+              <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Quest type (requirements to start) *</Text>
                 <Text style={styles.inputHint}>Selfie check-in is required. You can also require one or more proof types below.</Text>
                 {QUEST_TYPES.map((t) => (
@@ -640,38 +651,17 @@ export function CreateQuestScreen() {
               </View>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Location on map *</Text>
-                <Text style={styles.inputHint}>Tap the map to add a pin. Participants must be within the radius of this point.</Text>
-                {MapView && Marker ? (
-                  <View style={styles.mapContainer}>
-                    <MapView
-                      style={styles.map}
-                      region={region}
-                      onRegionChangeComplete={setRegion}
-                      onPress={handleMapPress}
-                      showsUserLocation
-                    >
-                      {pin && (
-                        <Marker
-                          coordinate={pin}
-                          draggable
-                          onDragEnd={(e: { nativeEvent: { coordinate: { latitude: number; longitude: number } } }) => setPin(e.nativeEvent.coordinate)}
-                        />
-                      )}
-                    </MapView>
-                  </View>
-                ) : (
-                  <View style={styles.mapPlaceholder}>
-                    <Text style={styles.mapPlaceholderText}>Map (development build)</Text>
-                    <TouchableOpacity style={styles.useLocationBtn} onPress={useMyLocation} disabled={locationLoading}>
-                      {locationLoading ? <ActivityIndicator size="small" color={Colors.ivoryBlue} /> : <Text style={styles.useLocationText}>Use my location</Text>}
-                    </TouchableOpacity>
-                    <Text style={styles.gpsHint}>Uses your device GPS, same as for photo proof.</Text>
-                    {pin && (
-                      <Text style={styles.coordText}>
+                <Text style={styles.inputHint}>Search or tap the map to add a pin. Minimum radius is 10m.</Text>
+                <MapPicker
+                    initialRegion={region}
+                    pin={pin}
+                    onPinChange={(coord) => setPin(coord)}
+                    onLocationSelect={(name) => setLocation(name)}
+                />
+                {pin && (
+                    <Text style={styles.coordText}>
                         Pin: {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)}
-                      </Text>
-                    )}
-                  </View>
+                    </Text>
                 )}
               </View>
               <View style={styles.inputGroup}>
@@ -756,16 +746,15 @@ export function CreateQuestScreen() {
               <Text style={styles.modalCloseText}>✕</Text>
             </TouchableOpacity>
           </View>
-          <View style={styles.cameraWrap}>
-            <CameraCapture
-              cameraType="back"
-              requireGPS={false}
-              onCapture={(uri) => {
+          <View style={styles.mediaPickerWrap}>
+            <MediaPicker
+              onSelect={(uri) => {
                 if (photoModal === 'brand') setBrandPhotoUri(uri);
+                else if (photoModal === 'quest') setQuestImageUri(uri);
                 else setGoodsPhotoUri(uri);
                 setPhotoModal(null);
               }}
-              onError={(err) => Alert.alert('Camera', err)}
+              onError={(err) => Alert.alert('Upload Error', err)}
             />
           </View>
         </View>
@@ -917,25 +906,6 @@ const styles = StyleSheet.create({
     borderLeftColor: Colors.ivoryBlue,
   },
   configNoteText: { fontSize: 13, color: Colors.ivoryBlueDark, lineHeight: 20 },
-  gpsHint: { fontSize: 12, color: Colors.textGray, marginTop: Spacing.xs },
-  mapContainer: { height: 200, borderRadius: BorderRadius.lg, overflow: 'hidden', marginTop: Spacing.xs, ...Shadows.sm },
-  map: { width: '100%', height: '100%' },
-  mapPlaceholder: {
-    minHeight: 120,
-    borderRadius: BorderRadius.lg,
-    borderWidth: 2,
-    borderStyle: 'dashed',
-    borderColor: Colors.ivoryBlueLight,
-    backgroundColor: Colors.white,
-    padding: Spacing.md,
-    marginTop: Spacing.xs,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...Shadows.sm,
-  },
-  mapPlaceholderText: { fontSize: 14, color: Colors.textGray, marginBottom: Spacing.sm },
-  useLocationBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg },
-  useLocationText: { fontSize: 16, fontWeight: '600', color: Colors.ivoryBlue },
   coordText: { fontSize: 12, color: Colors.textGray, marginTop: Spacing.xs },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.xs },
   tagChip: {
@@ -1001,7 +971,7 @@ const styles = StyleSheet.create({
   },
   modalClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   modalCloseText: { fontSize: 20, color: Colors.ivoryBlueDark },
-  cameraWrap: { flex: 1, minHeight: 400 },
+  mediaPickerWrap: { flex: 1 },
   successContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -1109,5 +1079,49 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.white,
+  },
+  imagePickerBtn: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    height: 150,
+    borderWidth: 1,
+    borderColor: Colors.creamDark,
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    ...Shadows.sm,
+  },
+  selectedImageContainer: {
+    width: '100%',
+    height: '100%',
+  },
+  selectedImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  imageOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  imageOverlayText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  imagePlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePlaceholderText: {
+    color: Colors.textGray,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

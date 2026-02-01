@@ -108,7 +108,7 @@ export const mockCampaigns = {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       userId = user?.id ?? null;
-    } catch (_) {}
+    } catch (_) { }
     const body = {
       action: 'CREATE_CAMPAIGN' as const,
       user_id: userId,
@@ -118,9 +118,10 @@ export const mockCampaigns = {
       min_funding_thb: request.min_funding_thb,
       requires_face_recognition: request.requires_face_recognition,
       start_date: request.start_date,
-      end_date: request.end_date,
-      checkpoints: request.checkpoints,
-      status: request.status || 'active',
+      quest_type: request.quest_type,
+      prize_chest: request.prize_chest,
+      sponsors: request.sponsors,
+      image_url: request.image_url,
     };
     const { data, error } = await supabase.functions.invoke('manage_campaign', { body });
     if (error) throw error;

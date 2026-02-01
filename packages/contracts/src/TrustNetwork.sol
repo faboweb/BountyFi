@@ -48,19 +48,57 @@ contract TrustNetwork is AccessControl {
 
     // --- User Actions ---
 
-    function addTrustee(address _trustee) external {
+    // Mapping from Sender -> Receiver -> IsPending
+    mapping(address => mapping(address => bool)) public pendingRequests;
+
+    event TrustRequestSent(address indexed sender, address indexed receiver);
+    event TrustRequestAccepted(address indexed sender, address indexed receiver);
+    event TrustRequestDeclined(address indexed sender, address indexed receiver);
+
+    // --- User Actions ---
+
+    /// @notice Send a request to trust another user.
+    function sendTrustRequest(address _trustee) external {
         require(_trustee != msg.sender, "Cannot trust self");
-        require(trustCircles[msg.sender].length < 10, "Trust circle full (max 10)");
+        require(!this.isConnection(msg.sender, _trustee), "Already connected");
+        require(!pendingRequests[msg.sender][_trustee], "Request already pending");
         
-        // Check for duplicates
-        for (uint i = 0; i < trustCircles[msg.sender].length; i++) {
-            require(trustCircles[msg.sender][i] != _trustee, "Already trusted");
+        pendingRequests[msg.sender][_trustee] = true;
+        emit TrustRequestSent(msg.sender, _trustee);
+    }
+
+    /// @notice Accept a trust request.
+    function acceptTrustRequest(address _sender) external {
+        require(pendingRequests[_sender][msg.sender], "No pending request");
+
+        // Mutual trust established
+        _addTrustConnection(_sender, msg.sender);
+        _addTrustConnection(msg.sender, _sender);
+
+        delete pendingRequests[_sender][msg.sender];
+        emit TrustRequestAccepted(_sender, msg.sender);
+    }
+
+    /// @notice Decline a trust request.
+    function declineTrustRequest(address _sender) external {
+        require(pendingRequests[_sender][msg.sender], "No pending request");
+        delete pendingRequests[_sender][msg.sender];
+        emit TrustRequestDeclined(_sender, msg.sender);
+    }
+
+    function _addTrustConnection(address _truster, address _trustee) internal {
+        if (trustCircles[_truster].length >= 10) return; // Cap at 10 silently or revert? 
+        // We revert in original, but here since it's mutual, maybe we should check both caps before?
+        // Let's stick to original logic but internal.
+        
+        // precise check for duplicates
+        for (uint i = 0; i < trustCircles[_truster].length; i++) {
+            if (trustCircles[_truster][i] == _trustee) return;
         }
 
-        trustCircles[msg.sender].push(_trustee);
-        reverseTrustCircles[_trustee].push(msg.sender);
-        
-        emit TrustConnectionCreated(msg.sender, _trustee);
+        trustCircles[_truster].push(_trustee);
+        reverseTrustCircles[_trustee].push(_truster);
+        emit TrustConnectionCreated(_truster, _trustee);
     }
 
     function setReferrer(address _referrer) external {

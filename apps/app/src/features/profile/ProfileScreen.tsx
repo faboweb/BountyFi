@@ -10,6 +10,7 @@ import {
   Image,
   SafeAreaView,
   Animated,
+  Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -62,10 +63,16 @@ export function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert('Logout', 'Are you sure?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Logout', style: 'destructive', onPress: async () => await logout() },
-    ]);
+    if (Platform.OS === 'web') {
+      if (window.confirm('Are you sure you want to logout?')) {
+        logout();
+      }
+    } else {
+      Alert.alert('Logout', 'Are you sure?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Logout', style: 'destructive', onPress: async () => await logout() },
+      ]);
+    }
   };
 
   const displayUser = userData || user;
@@ -146,6 +153,11 @@ export function ProfileScreen() {
             <TouchableOpacity style={styles.menuItem}>
               <Text style={styles.menuIcon}>🛡️</Text>
               <Text style={styles.menuText}>Privacy & Security</Text>
+              <Text style={styles.menuArrow}>→</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.menuItem} onPress={handleLogout}>
+              <Text style={styles.menuIcon}>🚪</Text>
+              <Text style={[styles.menuText, { color: Colors.error }]} >Log Out</Text>
               <Text style={styles.menuArrow}>→</Text>
             </TouchableOpacity>
           </View>
