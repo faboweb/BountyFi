@@ -149,8 +149,9 @@ export const submissionsApi = {
   },
 
   async getPending(): Promise<Submission[]> {
+    const savedUser = await authStorage.getUser();
     const { data: pending, error } = await supabase.functions.invoke('get_tasks', {
-      body: { validator_id: (await supabase.auth.getUser()).data.user?.id }
+      body: { validator_address: savedUser?.wallet_address }
     });
     if (error) {
       console.warn('get_tasks function failed, falling back to REST', error);
@@ -161,13 +162,13 @@ export const submissionsApi = {
   },
 
   async getMy(): Promise<Submission[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
+    const savedUser = await authStorage.getUser();
+    if (!savedUser?.wallet_address) return [];
 
     const { data, error } = await supabase
       .from('submissions')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('submitter_address', savedUser.wallet_address)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -189,11 +190,11 @@ export const submissionsApi = {
 // Validations API
 export const validationsApi = {
   async submit(request: ValidationRequest): Promise<void> {
-    const session = await supabase.auth.getSession();
+    const savedUser = await authStorage.getUser();
     const { error } = await supabase.functions.invoke('process_vote', {
       body: {
         submission_id: request.submission_id,
-        validator_id: session.data.session?.user.id,
+        validator_address: savedUser?.wallet_address,
         decision: request.vote === 'approve' ? 'APPROVED' : 'REJECTED',
         reason: 'Manually validated via app'
       }
@@ -205,13 +206,13 @@ export const validationsApi = {
 // Users API
 export const usersApi = {
   async getMe(): Promise<User> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error('Not authenticated');
+    const savedUser = await authStorage.getUser();
+    if (!savedUser?.wallet_address) throw new Error('Not authenticated');
 
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('id', user.id)
+      .eq('wallet_address', savedUser.wallet_address)
       .single();
 
     if (error) throw error;
@@ -247,9 +248,9 @@ export const usersApi = {
   },
 
   async getEarnings24h(): Promise<number> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return 0;
-    const { data, error } = await supabase.rpc('get_earnings_24h', { v_user_id: user.id });
+    const savedUser = await authStorage.getUser();
+    if (!savedUser?.wallet_address) return 0;
+    const { data, error } = await supabase.rpc('get_earnings_24h_by_wallet', { v_wallet: savedUser.wallet_address });
     if (error) {
       console.error('Failed to get 24h earnings:', error);
       return 0;

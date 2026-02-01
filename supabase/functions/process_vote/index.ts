@@ -8,21 +8,21 @@ serve(async (req) => {
     )
 
     try {
-        const { submission_id, validator_id, decision, reason } = await req.json()
+        const { submission_id, validator_address, decision, reason } = await req.json()
 
-        if (!submission_id || !validator_id || !decision) {
+        if (!submission_id || !validator_address || !decision) {
             throw new Error("Missing required fields")
         }
 
         // 1. Anti-collusion Check
         const { data: submission, error: subError } = await supabaseClient
             .from('submissions')
-            .select('user_id')
+            .select('submitter_address')
             .eq('id', submission_id)
             .single()
 
         if (subError) throw subError
-        if (submission.user_id === validator_id) {
+        if (submission.submitter_address === validator_address) {
             throw new Error("Collusion detected: You cannot vote on your own submission")
         }
 
@@ -31,7 +31,7 @@ serve(async (req) => {
             .from('votes')
             .insert({
                 submission_id,
-                validator_id,
+                validator_address,
                 decision,
                 reason
             })
@@ -87,7 +87,7 @@ serve(async (req) => {
 
         if (goldenTask) {
             const isCorrect = (decision === goldenTask.expected_outcome);
-            console.log(`Validator ${validator_id} graded on Golden Task. Correct: ${isCorrect}`);
+            console.log(`Validator ${validator_address} graded on Golden Task. Correct: ${isCorrect}`);
 
             if (isCorrect) {
                 // Reward: +1 Diamond (Trust Score)
@@ -116,7 +116,7 @@ serve(async (req) => {
         const { data: validator } = await supabaseClient
             .from('validators')
             .select('validations_today, total_validations, tickets_earned')
-            .eq('user_id', validator_id)
+            .eq('wallet_address', validator_address)
             .single()
 
         let newTotal = 1
@@ -133,12 +133,12 @@ serve(async (req) => {
                     validations_today: newToday,
                     total_validations: newTotal
                 })
-                .eq('user_id', validator_id)
+                .eq('wallet_address', validator_address)
         } else {
             await supabaseClient
                 .from('validators')
                 .insert({
-                    user_id: validator_id,
+                    wallet_address: validator_address,
                     validations_today: 1,
                     total_validations: 1
                 })
@@ -149,12 +149,12 @@ serve(async (req) => {
             await supabaseClient
                 .from('tickets')
                 .insert({
-                    user_id: validator_id,
+                    user_address: validator_address,
                     amount: 1,
                     source: 'validator_milestone',
                     // tx_hash left null, to be picked up by settle_onchain or similar process
                 })
-            console.log(`Validator ${validator_id} hit milestone ${newTotal}: +1 ticket queue`)
+            console.log(`Validator ${validator_address} hit milestone ${newTotal}: +1 ticket queue`)
         }
 
         return new Response(

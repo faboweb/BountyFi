@@ -8,15 +8,15 @@ serve(async (req) => {
     )
 
     try {
-        const { validator_id } = await req.json()
+        const { validator_address } = await req.json()
 
-        if (!validator_id) {
-            throw new Error("Missing validator_id")
+        if (!validator_address) {
+            throw new Error("Missing validator_address")
         }
 
         // Use the RPC method to call our SQL function
-        const { data, error } = await supabaseClient.rpc('get_validator_tasks', {
-            v_id: validator_id
+        const { data, error } = await supabaseClient.rpc('get_validator_tasks_by_wallet', {
+            v_wallet: validator_address
         })
 
         if (error) throw error

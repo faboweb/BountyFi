@@ -68,6 +68,7 @@ serve(async (req) => {
             .insert({
                 campaign_id,
                 user_id: null,
+                submitter_address: public_address,
                 photo_urls,
                 gps_lat,
                 gps_lng,

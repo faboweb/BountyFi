@@ -35,9 +35,10 @@ serve(async (req) => {
 
         // Match user by wallet_address (assuming it's in public.users or metadata)
         // If not found, we can't proceed.
+        // Match user by wallet_address
         const { data: userData, error: userError } = await supabaseClient
-            .from('users') // Assuming a public 'users' table exists as per earlier research
-            .select('id, tickets')
+            .from('users')
+            .select('wallet_address, tickets')
             .eq('wallet_address', publicAddress.toLowerCase())
             .maybeSingle();
 
@@ -53,13 +54,13 @@ serve(async (req) => {
         const { error: updateError } = await supabaseClient
             .from('users')
             .update({ tickets: currentTickets - 10 })
-            .eq('id', userData.id);
+            .eq('wallet_address', publicAddress.toLowerCase());
 
         if (updateError) throw updateError;
 
         // Also log the transaction in 'tickets' table
         await supabaseClient.from('tickets').insert({
-            user_id: userData.id,
+            user_address: publicAddress.toLowerCase(),
             amount: -10,
             source: 'lootbox_open',
             description: 'Opened Monthly Lootbox'
