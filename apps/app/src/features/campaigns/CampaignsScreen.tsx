@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../navigation/AppNavigator';
 import { api } from '../../api/client';
+import { API_CONFIG } from '../../config/api';
 import type { Campaign } from '../../api/types';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { BirdMascot } from '../../components/BirdMascot';
@@ -65,8 +66,26 @@ export function CampaignsScreen() {
     });
   }, [raw]);
 
+  const goToLootbox = () => {
+    navigation.navigate('Lootbox');
+  };
+
   const renderHeader = () => (
     <View style={styles.headerContainer}>
+      {/* Giftbox → Open Loot (top right) */}
+      <TouchableOpacity
+        style={styles.giftboxButton}
+        onPress={goToLootbox}
+        activeOpacity={0.7}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      >
+        <Ionicons name="gift-outline" size={26} color={Colors.textPrimary} />
+        {API_CONFIG.USE_MOCK_API ? (
+          <View style={styles.giftboxBadge}>
+            <Text style={styles.giftboxBadgeText}>2</Text>
+          </View>
+        ) : null}
+      </TouchableOpacity>
       <LinearGradient
         colors={[Colors.backgroundLight, Colors.background, Colors.background]}
         locations={[0, 0.4, 1]}
@@ -187,7 +206,39 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
   },
   headerContainer: {
-    overflow: 'hidden',
+    overflow: 'visible',
+    position: 'relative',
+  },
+  giftboxButton: {
+    position: 'absolute',
+    top: Spacing.sm,
+    right: Spacing.lg,
+    zIndex: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.card,
+  },
+  giftboxBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: Colors.coral,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  giftboxBadgeText: {
+    ...Typography.metadata,
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.white,
   },
   heroGradient: {
     paddingHorizontal: Spacing.lg,

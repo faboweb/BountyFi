@@ -1,136 +1,285 @@
 import * as React from 'react';
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
-  Alert,
   SafeAreaView,
-  ScrollView,
+  Animated,
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Typography, Spacing, Shadows } from '../../theme/theme';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/context';
+import { TransactionModal, TransactionStatus } from '../../components/TransactionModal';
+import { Confetti } from '../../components/Confetti';
+import type { CampaignLootboxPullResult } from '../../api/types';
 
 export function LootboxScreen() {
   const queryClient = useQueryClient();
   const { user, refreshUser } = useAuth();
-  const [isOpening, setIsOpening] = useState(false);
-  const [lastRequestId, setLastRequestId] = useState<string | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [txStatus, setTxStatus] = useState<TransactionStatus>('idle');
+  const [lastResult, setLastResult] = useState<CampaignLootboxPullResult | null>(null);
+  const [confettiActive, setConfettiActive] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | undefined>();
 
-  const tickets = user?.tickets ?? 0;
-  const diamonds = user?.diamonds ?? 0;
-  const canOpen = tickets >= 1 || diamonds >= 10;
-  const balanceLoading = false;
+  const { data: availableLootboxes = [], isLoading: lootboxesLoading } = useQuery({
+    queryKey: ['availableLootboxes'],
+    queryFn: () => api.lottery.getAvailableLootboxes(),
+  });
+  const currentLootbox = availableLootboxes[0] ?? null;
+  const campaignId = currentLootbox?.campaignId ?? null;
 
-  const { data: result, isLoading: resultLoading, refetch: refetchResult } = useQuery({
-    queryKey: ['lootboxResult', lastRequestId],
-    queryFn: () => (lastRequestId ? api.lottery.getResult(lastRequestId) : Promise.resolve(null)),
-    enabled: !!lastRequestId,
+  const { data: campaign } = useQuery({
+    queryKey: ['campaign', campaignId],
+    queryFn: () => api.campaigns.getById(campaignId!),
+    enabled: !!campaignId,
+  });
+  const campaignName = currentLootbox?.label ?? campaign?.title ?? 'Lootbox';
+  const potentialPrizes = campaign?.prize_chest ?? [];
+
+  const { data: userData } = useQuery({
+    queryKey: ['user', 'me'],
+    queryFn: () => api.users.getMe(),
+    enabled: !!user?.id,
+  });
+  const tickets = userData?.tickets ?? user?.tickets ?? 0;
+  const diamonds = userData?.diamonds ?? user?.diamonds ?? 0;
+  const canOpen = tickets >= 1;
+  const canRollAgain = diamonds >= 10;
+
+  // Shake animation for gift box (left-right wiggle)
+  const shakeAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(shakeAnim, { toValue: 1, duration: 70, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -1, duration: 70, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 1, duration: 70, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: -1, duration: 70, useNativeDriver: true }),
+        Animated.timing(shakeAnim, { toValue: 0, duration: 70, useNativeDriver: true }),
+        Animated.delay(1000),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  const shakeTranslate = shakeAnim.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [-8, 0, 8],
   });
 
-  const handleOpenLootbox = async () => {
-    setIsOpening(true);
+  const openLootbox = async () => {
+    if (!canOpen || !campaignId) return;
+    setModalVisible(true);
+    setTxStatus('pending');
+    setLastResult(null);
+    setConfettiActive(false);
     try {
-      const res = await api.lottery.openOnChain();
-      setLastRequestId(res.requestId);
+      const result = await api.lottery.openCampaignLootbox(campaignId);
+      setLastResult(result);
+      setTxStatus('success');
+      if (result.won && result.prize) {
+        setConfettiActive(true);
+        setTimeout(() => setConfettiActive(false), 3000);
+      }
       await refreshUser();
-      queryClient.invalidateQueries({ queryKey: ['bountyBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['lootboxResult', res.requestId] });
-      Alert.alert('Success', `Request #${res.requestId}. Check back in a few seconds for your prize.`);
+      queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
+      queryClient.invalidateQueries({ queryKey: ['availableLootboxes'] });
     } catch (error: any) {
-      console.error(error);
-      Alert.alert('Error', error.message || 'Failed to open lootbox');
-    } finally {
-      setIsOpening(false);
+      setTxStatus('error');
+      setLastResult(null);
+      setErrorMessage(error?.message ?? 'Failed to open lootbox');
     }
   };
 
-  const handleCheckResult = async () => {
-    if (!lastRequestId) return;
+  const handleRollAgain = async () => {
+    if (!canRollAgain || !campaignId) return;
+    setTxStatus('pending');
+    setLastResult(null);
+    setConfettiActive(false);
+    setErrorMessage(undefined);
     try {
-      await api.lottery.syncResult(lastRequestId);
-      await refetchResult();
+      const result = await api.lottery.rollAgainCampaignLootbox(campaignId);
+      setLastResult(result);
+      setTxStatus('success');
+      if (result.won && result.prize) {
+        setConfettiActive(true);
+        setTimeout(() => setConfettiActive(false), 3000);
+      }
+      await refreshUser();
+      queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to sync result');
+      setTxStatus('error');
+      setErrorMessage(error?.message ?? 'Failed to roll again');
     }
   };
+
+  const handleCloseModal = () => {
+    setModalVisible(false);
+    setTxStatus('idle');
+    setLastResult(null);
+    setErrorMessage(undefined);
+  };
+
+  const prizeText = lastResult?.won && lastResult.prize
+    ? `${lastResult.prize.emoji} ${lastResult.prize.label}`
+    : lastResult && !lastResult.won
+      ? 'No prize this time 🎁'
+      : '';
+
+  if (!lootboxesLoading && availableLootboxes.length === 0 && !modalVisible) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.centered}>
+          <Text style={styles.noCampaignText}>No lootboxes available right now. Check back later!</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.title}>🎁 Monthly Lootbox</Text>
-        <Text style={styles.subtitle}>Use 1 ticket or 10 diamonds for a chance to win rare rewards!</Text>
+      <Confetti active={confettiActive} />
 
-        <View style={styles.balanceCard}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Campaign Lootbox</Text>
+        {campaignName ? (
+          <Text style={styles.campaignName}>{campaignName}</Text>
+        ) : null}
+        <Text style={styles.subtitle}>Tickets = lootboxes. Tap to open (1 ticket). Use diamonds to roll again.</Text>
+
+        {potentialPrizes.length > 0 ? (
+          <View style={styles.prizesSection}>
+            <Text style={styles.prizesLabel}>Potential prizes</Text>
+            <View style={styles.prizesRow}>
+              {potentialPrizes.map((item, index) => {
+                const label = item.label;
+                const emoji = 'emoji' in item && typeof (item as { emoji?: string }).emoji === 'string' ? (item as { emoji?: string }).emoji : null;
+                return (
+                  <View key={index} style={styles.prizeChip}>
+                    <Text style={styles.prizeChipText}>{emoji ? `${emoji} ` : ''}{label}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        ) : null}
+
+        <View style={styles.balanceRow}>
           <Text style={styles.balanceLabel}>Your balance</Text>
-          <Text style={styles.balanceValue}>{balanceLoading ? '...' : `${tickets} ticket${tickets !== 1 ? 's' : ''} · ${diamonds} 💎`}</Text>
+          <Text style={styles.balanceValue}>{tickets} ticket{tickets !== 1 ? 's' : ''} · {diamonds} 💎</Text>
         </View>
 
         <TouchableOpacity
-          style={[styles.openButton, (isOpening || !canOpen) && styles.disabledButton]}
-          onPress={handleOpenLootbox}
-          disabled={isOpening || !canOpen}
+          style={styles.giftWrap}
+          onPress={openLootbox}
+          disabled={!canOpen || !campaignId}
+          activeOpacity={0.9}
         >
-          {isOpening ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Open Lootbox (1 ticket or 10 💎)</Text>
-          )}
+          <Animated.View style={[styles.giftBox, { transform: [{ translateX: shakeTranslate }] }]}>
+            <Ionicons name="gift" size={120} color={Colors.coral} />
+          </Animated.View>
         </TouchableOpacity>
 
-        {!canOpen && !balanceLoading && (
-          <Text style={styles.warning}>Need 1 ticket or 10 diamonds to open a box!</Text>
+        {!canOpen && (
+          <Text style={styles.warning}>Need 1 ticket to open</Text>
         )}
 
-        {lastRequestId ? (
-          <View style={styles.resultCard}>
-            <Text style={styles.resultTitle}>Last open</Text>
-            <Text style={styles.resultRequestId}>Request #{lastRequestId}</Text>
-            {resultLoading ? (
-              <Text style={styles.resultText}>Loading…</Text>
-            ) : result?.fulfilled ? (
-              <View>
-                <Text style={styles.prizeLabel}>
-                  {result.prize_label ? `You won: ${result.prize_label}` : 'No prize this time'}
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.resultRow}>
-                <Text style={styles.resultText}>VRF pending — tap to refresh</Text>
-                <TouchableOpacity style={styles.checkButton} onPress={handleCheckResult}>
-                  <Text style={styles.checkButtonText}>Check result</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        ) : null}
-      </ScrollView>
+        {canOpen && campaignId && (
+          <Text style={styles.tapHint}>Tap the gift to open (1 ticket)</Text>
+        )}
+      </View>
+
+      <TransactionModal
+        visible={modalVisible}
+        onClose={handleCloseModal}
+        title="Opening lootbox..."
+        description="One moment..."
+        status={txStatus}
+        errorMessage={errorMessage}
+        successTitle={lastResult?.won ? 'You won!' : 'Result'}
+        successDescription={prizeText}
+        successActionLabel={canRollAgain ? 'Roll again for 10 💎' : undefined}
+        onSuccessAction={canRollAgain ? handleRollAgain : undefined}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
-  content: { padding: Spacing.xl, alignItems: 'center', paddingBottom: Spacing.xxl * 2 },
-  title: { ...Typography.cardTitle, fontSize: 28, marginBottom: Spacing.sm },
-  subtitle: { ...Typography.metadata, textAlign: 'center', color: Colors.textSecondary, marginBottom: Spacing.xl },
-  balanceCard: { backgroundColor: Colors.white, padding: Spacing.xl, borderRadius: BorderRadius.xl, ...Shadows.card, width: '100%', alignItems: 'center', marginBottom: Spacing.xxl },
-  balanceLabel: { ...Typography.metadata, color: Colors.textSecondary, marginBottom: 4 },
-  balanceValue: { ...Typography.cardTitle, fontSize: 28, color: Colors.chartBlue },
-  openButton: { backgroundColor: Colors.chartBlue, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.xxl, borderRadius: BorderRadius.xl, width: '100%', alignItems: 'center', ...Shadows.card },
-  disabledButton: { backgroundColor: Colors.primaryDark },
-  buttonText: { color: Colors.white, ...Typography.button, fontSize: 16 },
-  warning: { marginTop: Spacing.lg, color: Colors.error, fontWeight: '600' },
-  resultCard: { backgroundColor: Colors.white, padding: Spacing.xl, borderRadius: BorderRadius.xl, ...Shadows.card, width: '100%', marginTop: Spacing.xl, alignItems: 'center' },
-  resultTitle: { ...Typography.caption, color: Colors.textGray, marginBottom: 4 },
-  resultRequestId: { ...Typography.body, marginBottom: Spacing.sm },
-  resultText: { ...Typography.body, color: Colors.textGray },
-  resultRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flexWrap: 'wrap', justifyContent: 'center' },
-  prizeLabel: { ...Typography.heading, fontSize: 20, color: Colors.success },
-  checkButton: { backgroundColor: Colors.chartBlue, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg, borderRadius: BorderRadius.lg, ...Shadows.sm },
-  checkButtonText: { color: Colors.white, ...Typography.button, fontSize: 14 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
+  noCampaignText: { ...Typography.body, color: Colors.textSecondary },
+  content: {
+    flex: 1,
+    paddingHorizontal: Spacing.xl,
+    paddingTop: Spacing.lg,
+    alignItems: 'center',
+  },
+  title: { ...Typography.heading, fontSize: 26, marginBottom: Spacing.xs },
+  campaignName: {
+    ...Typography.subHeading,
+    fontSize: 18,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.xs,
+    textAlign: 'center',
+  },
+  subtitle: { ...Typography.metadata, color: Colors.textSecondary, marginBottom: Spacing.lg },
+  prizesSection: {
+    width: '100%',
+    marginBottom: Spacing.lg,
+  },
+  prizesLabel: {
+    ...Typography.metadata,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+    fontWeight: '600',
+  },
+  prizesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  prizeChip: {
+    backgroundColor: Colors.white,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  prizeChipText: {
+    ...Typography.metadata,
+    fontSize: 13,
+    color: Colors.textPrimary,
+  },
+  balanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.xxl,
+  },
+  balanceLabel: { ...Typography.metadata, color: Colors.textSecondary },
+  balanceValue: { ...Typography.cardTitle, fontSize: 22, color: Colors.chartBlue },
+  giftWrap: {
+    marginVertical: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  giftBox: {
+    width: 160,
+    height: 160,
+    borderRadius: 24,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.cardElevated,
+  },
+  warning: { ...Typography.body, color: Colors.error, fontWeight: '600', marginTop: Spacing.md },
+  tapHint: { ...Typography.metadata, color: Colors.textMuted, marginTop: Spacing.lg },
 });

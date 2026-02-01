@@ -105,6 +105,7 @@ function QuestsStack() {
       <Stack.Screen name="DailyTaskCamera" component={DailyTaskCameraScreen} />
       <Stack.Screen name="DonatorImpactDashboard" component={DonatorImpactDashboardScreen} />
       <Stack.Screen name="RewardsCelebration" component={RewardsCelebrationScreen} />
+      <Stack.Screen name="Lootbox" component={LootboxScreen} />
     </Stack.Navigator>
   );
 }
@@ -115,7 +116,6 @@ function ProfileStack() {
       <Stack.Screen name="Profile" component={ProfileScreen} />
       <Stack.Screen name="TreasureWallet" component={TreasureWalletScreen} />
       <Stack.Screen name="Leaderboard" component={LeaderboardScreen} />
-      <Stack.Screen name="Lootbox" component={LootboxScreen} />
       <Stack.Screen name="RedeemChallenges" component={RedeemChallengesScreen} />
       <Stack.Screen name="PlayTicketResult" component={PlayTicketResultScreen} />
     </Stack.Navigator>

@@ -8,6 +8,7 @@ export const Colors = {
   // Background
   background: '#C6E3F5',
   backgroundLight: '#D4EBF7',
+  backgroundDark: '#B0D4E8',
 
   // Primary - muted grey for surfaces
   primary: '#D8DCE1',

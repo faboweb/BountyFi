@@ -23,6 +23,13 @@ interface TransactionModalProps {
   txHash?: string;
   errorMessage?: string;
   confirmLabel?: string;
+  /** Custom title when status is success (e.g. "You won!") */
+  successTitle?: string;
+  /** Custom description when success (e.g. prize text) */
+  successDescription?: string;
+  /** Optional secondary action on success (e.g. "Try again for 10 diamonds") */
+  successActionLabel?: string;
+  onSuccessAction?: () => void;
 }
 
 export function TransactionModal({
@@ -35,6 +42,10 @@ export function TransactionModal({
   txHash,
   errorMessage,
   confirmLabel = 'Confirm',
+  successTitle,
+  successDescription,
+  successActionLabel,
+  onSuccessAction,
 }: TransactionModalProps) {
   const isPending = status === 'pending';
   const isSuccess = status === 'success';
@@ -65,12 +76,12 @@ export function TransactionModal({
           )}
 
           <Text style={styles.title}>
-            {isSuccess ? 'Transaction Confirmed' : isError ? 'Transaction Failed' : title}
+            {isSuccess ? (successTitle ?? 'Transaction Confirmed') : isError ? 'Transaction Failed' : title}
           </Text>
 
           <Text style={styles.description}>
             {isSuccess
-              ? 'Your transaction has been successfully confirmed on the blockchain.'
+              ? (successDescription ?? 'Your transaction has been successfully confirmed on the blockchain.')
               : isError
               ? errorMessage || 'Something went wrong. Please try again.'
               : description}
@@ -96,12 +107,18 @@ export function TransactionModal({
               </TouchableOpacity>
             )}
 
+            {isSuccess && successActionLabel && onSuccessAction && (
+              <TouchableOpacity style={styles.confirmButton} onPress={onSuccessAction}>
+                <Text style={styles.confirmButtonText}>{successActionLabel}</Text>
+              </TouchableOpacity>
+            )}
+
             {!isPending && (
               <TouchableOpacity
-                style={[styles.closeButton, (isSuccess || isError) && styles.primaryClose]}
+                style={[styles.closeButton, (isSuccess || isError) && !successActionLabel && styles.primaryClose]}
                 onPress={onClose}
               >
-                <Text style={(isSuccess || isError) ? styles.primaryCloseText : styles.closeButtonText}>
+                <Text style={(isSuccess || isError) && !successActionLabel ? styles.primaryCloseText : styles.closeButtonText}>
                   {isSuccess ? 'Done' : 'Close'}
                 </Text>
               </TouchableOpacity>

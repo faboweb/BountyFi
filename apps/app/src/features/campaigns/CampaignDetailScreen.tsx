@@ -16,6 +16,7 @@ import { RouteProp as RNRouteProp } from '@react-navigation/native';
 import { AppStackParamList } from '../../navigation/AppNavigator';
 import { api } from '../../api/client';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
+import { safeFormatDate } from '../../utils/date';
 import { Button } from '../../components/Button';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
@@ -89,6 +90,14 @@ export function CampaignDetailScreen() {
                   ? 'Selfie first, then a photo showing veggies/fruits in a tote or non-plastic. Chiang Mai area.'
                   : 'Photo + GPS proof required. Start mission opens camera.'}
           </Text>
+          {(() => {
+            const start = safeFormatDate(campaign.start_date);
+            const end = safeFormatDate(campaign.end_date);
+            if (start === '—' && end === '—') return null;
+            return (
+              <Text style={styles.missionDates}>{start} – {end}</Text>
+            );
+          })()}
         </View>
 
         {/* Checkpoints from campaign */}
@@ -263,6 +272,12 @@ const styles = StyleSheet.create({
     ...Typography.metadata,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  missionDates: {
+    ...Typography.metadata,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
   },
   checkpointList: {
     backgroundColor: Colors.white,

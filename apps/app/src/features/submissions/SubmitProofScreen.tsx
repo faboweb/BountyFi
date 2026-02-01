@@ -33,6 +33,7 @@ import {
   EIP712_TYPES,
 } from '../../utils/eip712Submission';
 import { calculateDistance, isWithinCheckpoint, getTimeDifferenceMinutes } from '../../utils/geo';
+import { isSameCalendarDay as safeIsSameCalendarDay } from '../../utils/date';
 import { API_CONFIG } from '../../config/api';
 import { Campaign, Checkpoint, QuestType } from '../../api/types';
 import * as Location from 'expo-location';
@@ -44,12 +45,6 @@ type PhotoData = {
   uri: string;
   gps?: { lat: number; lng: number };
   timestamp: string;
-};
-
-const isSameCalendarDay = (iso1: string, iso2: string): boolean => {
-  const d1 = new Date(iso1);
-  const d2 = new Date(iso2);
-  return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 };
 
 /** Set to false to re-enforce "one participation only" for Uniserv CMU Cleanup */
@@ -106,7 +101,7 @@ export function SubmitProofScreen() {
   const myCampaignSubmissions = (mySubmissions ?? []).filter((s: { campaign_id: string }) => s.campaign_id === campaignId);
   const alreadyParticipatedUniserv = !ALLOW_MULTIPLE_UNISERV_FOR_TESTING && isUniserv && myCampaignSubmissions.length > 0;
   const today = new Date().toISOString();
-  const alreadySubmittedTodayNoBurn = isNoBurn && myCampaignSubmissions.some((s: { created_at: string }) => isSameCalendarDay(s.created_at, today));
+  const alreadySubmittedTodayNoBurn = isNoBurn && myCampaignSubmissions.some((s: { created_at: string }) => safeIsSameCalendarDay(s.created_at, today));
   // ban_plastic: no per-day limit
 
   useEffect(() => {
@@ -356,6 +351,11 @@ export function SubmitProofScreen() {
       if (!selfiePhoto) return;
       if (!selfiePhoto.gps) {
         setValidationErrors(['Location is recorded with your selfie. Please enable GPS and retake.']);
+        Alert.alert(
+          'Location required',
+          'Your selfie must include GPS. Please enable location permission, then retake the selfie.',
+          [{ text: 'OK' }]
+        );
         return;
       }
       // In any quest, if selfie is outside checkpoint, don't allow further steps

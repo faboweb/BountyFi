@@ -130,6 +130,13 @@ export interface PrizeTier {
   count: number;
 }
 
+/** One entry in the list of lootboxes available to open (from backend, in series). */
+export interface AvailableLootboxEntry {
+  campaignId: string;
+  /** Optional label for UI (e.g. campaign title). */
+  label?: string;
+}
+
 /** Result of one campaign lootbox pull. Each pull is independent; user may win nothing or one prize. */
 export interface CampaignLootboxPullResult {
   won: boolean;

@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ethers } from 'ethers';
 import { api, TRUSTNETWORK_ABI } from '../../api/client';
+import { API_CONFIG } from '../../config/api';
 import { Colors, Typography, Spacing, Shadows, BorderRadius } from '../../theme/theme';
 import { Card } from '../../components/Card';
 import { TransactionModal, TransactionStatus } from '../../components/TransactionModal';
@@ -54,25 +55,38 @@ export function TeamScreen() {
 
   const handleConfirmResponse = async () => {
     if (!activeRequest) return;
-    
+
     setTxStatus('pending');
     try {
+      if (API_CONFIG.USE_MOCK_API) {
+        const mockTxHash = '0x' + '0'.repeat(64) + Date.now().toString(16);
+        await api.users.updateTrustRequestStatus(
+          activeRequest.id,
+          activeRequest.action === 'accept' ? 'accepted' : 'declined',
+          mockTxHash
+        );
+        setTxHash(mockTxHash);
+        setTxStatus('success');
+        queryClient.invalidateQueries({ queryKey: ['teamRequests'] });
+        queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
+        return;
+      }
+
       const wallet = await getWallet();
       const contract = new ethers.Contract(CHAIN_CONFIG.BOUNTYFI_ADDRESS, TRUSTNETWORK_ABI, wallet);
-      
+
       let tx;
       if (activeRequest.action === 'accept') {
         tx = await contract.acceptTrustRequest(activeRequest.senderAddress);
       } else {
         tx = await contract.declineTrustRequest(activeRequest.senderAddress);
       }
-      
+
       setTxHash(tx.hash);
       await tx.wait();
-      
-      // Update DB status
+
       await api.users.updateTrustRequestStatus(activeRequest.id, activeRequest.action === 'accept' ? 'accepted' : 'declined', tx.hash);
-      
+
       setTxStatus('success');
       queryClient.invalidateQueries({ queryKey: ['teamRequests'] });
       queryClient.invalidateQueries({ queryKey: ['user', 'me'] });

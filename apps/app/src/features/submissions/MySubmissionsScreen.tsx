@@ -16,6 +16,7 @@ import { AppStackParamList } from '../../navigation/AppNavigator';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { api } from '../../api/client';
 import { Submission } from '../../api/types';
+import { safeFormatDate } from '../../utils/date';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
@@ -101,7 +102,7 @@ export function MySubmissionsScreen() {
 
           <View style={styles.cardFooter}>
             <Text style={styles.timestamp}>
-              {new Date(item.created_at).toLocaleDateString()}
+              {safeFormatDate(item.created_at)}
             </Text>
             {item.status === 'pending' && (
               <Text style={styles.voteInfo}>

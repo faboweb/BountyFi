@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ethers } from 'ethers';
 import { api, TRUSTNETWORK_ABI } from '../../api/client';
+import { API_CONFIG } from '../../config/api';
 import { Colors, Typography, Spacing, Shadows } from '../../theme/theme';
 import { TransactionModal, TransactionStatus } from '../../components/TransactionModal';
 import { getWallet } from '../../utils/contracts';
@@ -117,29 +118,34 @@ export function AddTeamMemberScreen() {
 
   const handleSendRequest = async () => {
     if (!foundUser || !foundUser.email /* email as placeholder for addr resolution */) return;
-    
-    // In a real app, we'd have the wallet address from the search result.
-    // If searchByUsername doesn't return address, we need to fetch user profile or ensure it's in result.
-    // Assuming search result has it or we use placeholder.
-    const targetAddress = (foundUser as any).wallet_address || '0x0000000000000000000000000000000000000000';
-    if (targetAddress === '0x0000000000000000000000000000000000000000') {
-        setTxError('This user does not have a linked wallet.');
-        setTxStatus('error');
-        return;
-    }
 
     setTxStatus('pending');
     try {
+      if (API_CONFIG.USE_MOCK_API) {
+        const mockTxHash = '0x' + '0'.repeat(64) + Date.now().toString(16);
+        await api.users.syncTrustRequest(foundUser.id, mockTxHash);
+        setTxHash(mockTxHash);
+        setTxStatus('success');
+        queryClient.invalidateQueries({ queryKey: ['teamRequests'] });
+        return;
+      }
+
+      const targetAddress = (foundUser as any).wallet_address || '0x0000000000000000000000000000000000000000';
+      if (targetAddress === '0x0000000000000000000000000000000000000000') {
+        setTxError('This user does not have a linked wallet.');
+        setTxStatus('error');
+        return;
+      }
+
       const wallet = await getWallet();
       const contract = new ethers.Contract(CHAIN_CONFIG.BOUNTYFI_ADDRESS, TRUSTNETWORK_ABI, wallet);
-      
+
       const tx = await contract.sendTrustRequest(targetAddress);
       setTxHash(tx.hash);
       await tx.wait();
-      
-      // Sync with DB
+
       await api.users.syncTrustRequest(foundUser.id, tx.hash);
-      
+
       setTxStatus('success');
       queryClient.invalidateQueries({ queryKey: ['teamRequests'] });
     } catch (e: any) {
@@ -297,6 +303,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.error,
     marginBottom: Spacing.sm,
+  },
+  primaryButton: {
+    backgroundColor: Colors.ivoryBlue,
+    paddingVertical: Spacing.md + 4,
+    paddingHorizontal: Spacing.lg,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
+  primaryButtonText: {
+    ...Typography.button,
+    color: Colors.white,
   },
   foundUserCard: {
     flexDirection: 'row',

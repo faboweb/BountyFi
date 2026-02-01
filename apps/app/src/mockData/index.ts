@@ -9,7 +9,7 @@ export const MOCK_USER: User = {
   referral_code: 'ALEX2025',
   validations_completed: 23,
   accuracy_rate: 0.96,
-  diamonds: 12,
+  diamonds: 24,
   audit_fail_count: 0,
   trusted_network_ids: ['user_2', 'user_3'],
 };

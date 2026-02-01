@@ -4,11 +4,13 @@ import { API_CONFIG } from '../config/api';
 import axios, { AxiosInstance } from 'axios';
 import { authStorage } from '../auth/storage';
 import { notifyUnauthorized } from '../auth/onUnauthorized';
-import { supabase } from '../utils/supabase';
+import { supabase, clearSupabaseAuthStorage } from '../utils/supabase';
 import { getLootboxContract } from '../utils/contracts';
+import { safeParseDate } from '../utils/date';
 import {
   AuthResponse,
   Campaign,
+  AvailableLootboxEntry,
   CampaignLootboxPullResult,
   Submission,
   User,
@@ -129,12 +131,18 @@ export const campaignsApi = {
 
     if (error) throw error;
 
-    // Aggregate prize_total from donations
+    // Aggregate prize_total from donations; normalize dates to avoid RangeError (out of bounds)
+    const fallbackIso = new Date().toISOString();
     return data.map((campaign: any) => {
       const donatedTotal = campaign.donations?.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0) || 0;
+      const createdIso = campaign.created_at ?? fallbackIso;
+      const start_date = safeParseDate(campaign.start_date) ? campaign.start_date : createdIso;
+      const end_date = safeParseDate(campaign.end_date) ? campaign.end_date : createdIso;
       return {
         ...campaign,
         prize_total: (campaign.prize_total || 0) + donatedTotal,
+        start_date,
+        end_date,
       };
     }) as Campaign[];
   },
@@ -158,6 +166,9 @@ export const campaignsApi = {
 
     const campaignData = data as any;
     const donatedTotal = campaignData.donations?.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0) || 0;
+    const createdIso = campaignData.created_at ?? new Date().toISOString();
+    const start_date = safeParseDate(campaignData.start_date) ? campaignData.start_date : createdIso;
+    const end_date = safeParseDate(campaignData.end_date) ? campaignData.end_date : createdIso;
 
     // Map campaign_prizes to prize_chest if not already present
     const dbPrizes = campaignData.campaign_prizes?.map((p: any) => ({
@@ -172,6 +183,8 @@ export const campaignsApi = {
     return {
       ...campaignData,
       prize_total: (campaignData.prize_total || 0) + donatedTotal,
+      start_date,
+      end_date,
       prize_chest: campaignData.prize_chest && campaignData.prize_chest.length > 0
         ? campaignData.prize_chest
         : dbPrizes,
@@ -388,7 +401,16 @@ export const usersApi = {
   async addDiamonds(amount: number): Promise<void> {
     // This likely needs an Edge Function or DB update, but since it was a POST to /users/jury/diamonds
     // we'll keep it as an RPC or direct update if permitted by RLS
-    const { data: { user } } = await supabase.auth.getUser();
+    let user: { id: string } | null = null;
+    try {
+      const result = await supabase.auth.getUser();
+      user = result.data?.user ?? null;
+    } catch (e) {
+      if (e instanceof Error && e.message.includes('Date value out of bounds')) {
+        await clearSupabaseAuthStorage();
+      }
+      throw new Error('Not authenticated');
+    }
     if (!user) throw new Error('Not authenticated');
 
     const { error } = await supabase.rpc('increment_diamonds', { amount });
@@ -521,6 +543,16 @@ export const leaderboardApi = {
 
 // Lottery API
 export const lotteryApi = {
+  /** Returns lootboxes available to open, in series (backend order). Open one after another. */
+  async getAvailableLootboxes(): Promise<AvailableLootboxEntry[]> {
+    const { data, error } = await supabase.functions.invoke('get_available_lootboxes', {
+      headers: edgeFunctionHeaders(),
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return (data?.lootboxes ?? data ?? []) as AvailableLootboxEntry[];
+  },
+
   async getByCampaign(campaignId: string): Promise<Lottery> {
     const response = await apiClient.get<Lottery>(`/lottery/${campaignId}`);
     return response.data;
@@ -549,15 +581,26 @@ export const lotteryApi = {
     return { success: true, requestId };
   },
 
-  /** Campaign lootbox: open lootbox (one pull) → response is "check if won". Campaign must be ended; higher-value prizes = lower chance; may win nothing. */
+  /** Campaign lootbox: open with 1 ticket (tickets = lootboxes). Returns result. */
   async openCampaignLootbox(campaignId: string, opts?: { signature?: string; message?: string }): Promise<CampaignLootboxPullResult> {
-    const body: { campaign_id: string; signature?: string; message?: string } = { campaign_id: campaignId };
+    const body: { campaign_id: string; roll_again?: boolean; signature?: string; message?: string } = { campaign_id: campaignId };
     if (opts?.signature != null && opts?.message != null) {
       body.signature = opts.signature;
       body.message = opts.message;
     }
     const { data, error } = await supabase.functions.invoke('campaign_lootbox_pull', {
       body,
+      headers: edgeFunctionHeaders(),
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as CampaignLootboxPullResult;
+  },
+
+  /** Roll again in same category — costs 10 diamonds. Get another lootbox in that category. */
+  async rollAgainCampaignLootbox(campaignId: string): Promise<CampaignLootboxPullResult> {
+    const { data, error } = await supabase.functions.invoke('campaign_lootbox_pull', {
+      body: { campaign_id: campaignId, roll_again: true },
       headers: edgeFunctionHeaders(),
     });
     if (error) throw error;

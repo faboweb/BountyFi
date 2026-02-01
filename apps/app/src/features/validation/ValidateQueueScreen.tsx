@@ -8,14 +8,14 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-  Animated,
   SafeAreaView,
   Modal,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/context';
-import { mockWebSocket } from '../../api/mock';
+import { mockWebSocket, MOCK_AUDIT_SAME_IMG } from '../../api/mock';
+import { API_CONFIG } from '../../config/api';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Submission } from '../../api/types';
 import { Button } from '../../components/Button';
@@ -28,7 +28,7 @@ type PendingVote = {
 };
 
 /** Queue item: real submission or synthetic audit (same image as before & after; correct vote = reject) */
-type QueueItem = (Submission & { is_audit?: boolean }) | { id: string; before_photo_url: string; after_photo_url: string; is_audit: true };
+type QueueItem = (Submission & { is_audit?: boolean; is_single_photo?: boolean }) | { id: string; campaign_id?: string; before_photo_url: string; after_photo_url: string; is_audit: true };
 
 const AUDIT_PROBABILITY = 0.2; // ~20% of items can be random audits
 
@@ -37,10 +37,31 @@ const DEMO_FIELD_WITH_TRASH_IMAGE =
   'https://images.unsplash.com/photo-1592890278983-18616401d4ed?w=800';
 
 function buildQueue(visibleSubmissions: Submission[]): QueueItem[] {
+  // Mock mode: fixed demo sequence — 1) plastic bag (decline) 2) proper cleanup (approve) 3) audit (approve → −1 diamond)
+  if (API_CONFIG.USE_MOCK_API) {
+    const demo = visibleSubmissions.filter(
+      (s) => s.id === 'mock_demo_plastic' || s.id === 'mock_demo_cleanup'
+    );
+    if (demo.length >= 2) {
+      return [
+        demo.find((s) => s.id === 'mock_demo_plastic')!,
+        demo.find((s) => s.id === 'mock_demo_cleanup')!,
+        {
+          id: 'mock_demo_audit',
+          campaign_id: 'campaign_uniserv',
+          before_photo_url: MOCK_AUDIT_SAME_IMG,
+          after_photo_url: MOCK_AUDIT_SAME_IMG,
+          is_audit: true,
+        },
+      ];
+    }
+  }
+
   const list: QueueItem[] = [];
-  // Prepend a demo audit (field with trash, same on both sides) so Verify always has at least one spot-check
+  const firstCampaignId = visibleSubmissions[0]?.campaign_id;
   list.push({
     id: 'demo_audit_field_trash',
+    campaign_id: firstCampaignId,
     before_photo_url: DEMO_FIELD_WITH_TRASH_IMAGE,
     after_photo_url: DEMO_FIELD_WITH_TRASH_IMAGE,
     is_audit: true,
@@ -51,6 +72,7 @@ function buildQueue(visibleSubmissions: Submission[]): QueueItem[] {
       const sameImage = Math.random() < 0.5 ? sub.before_photo_url : sub.after_photo_url;
       list.push({
         id: `audit_${Date.now()}_${i}`,
+        campaign_id: sub.campaign_id,
         before_photo_url: sameImage,
         after_photo_url: sameImage,
         is_audit: true,
@@ -66,7 +88,6 @@ export function ValidateQueueScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [pendingVotes, setPendingVotes] = useState<PendingVote[]>([]);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
 
   // Transaction modal flow
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -111,16 +132,17 @@ export function ValidateQueueScreen() {
   const onBeforeError = () => setImageErrors((e) => ({ ...e, before: true }));
   const onAfterError = () => setImageErrors((e) => ({ ...e, after: true }));
 
+  const campaignId = currentSubmission?.campaign_id ?? (currentItem as { campaign_id?: string })?.campaign_id;
   const { data: campaign } = useQuery({
-    queryKey: ['campaign', currentSubmission?.campaign_id],
+    queryKey: ['campaign', campaignId],
     queryFn: async () => {
       try {
-        return currentSubmission ? await api.campaigns.getById(currentSubmission.campaign_id) : null;
+        return campaignId ? await api.campaigns.getById(campaignId) : null;
       } catch {
         return null;
       }
     },
-    enabled: !!currentSubmission,
+    enabled: !!campaignId,
   });
 
   const { data: userData, refetch: refetchUser } = useQuery({
@@ -145,11 +167,7 @@ export function ValidateQueueScreen() {
   }, [queryClient]);
 
   const animateTransition = (callback: () => void) => {
-    Animated.sequence([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: true }),
-      Animated.timing(fadeAnim, { toValue: 1, duration: 150, useNativeDriver: true }),
-    ]).start();
-    setTimeout(callback, 150);
+    setTimeout(callback, 50);
   };
 
   const advanceToNext = () => {
@@ -313,7 +331,7 @@ export function ValidateQueueScreen() {
           </Text>
         </View>
         {pendingVotes.length > 0 && (
-          <View style={styles.unsavedBanner}>
+          <View style={[styles.unsavedBanner, styles.unsavedBannerAbsolute]}>
             <View style={styles.unsavedContent}>
               <Text style={styles.unsavedBadge}>⚠</Text>
               <Text style={styles.unsavedText}>
@@ -340,7 +358,7 @@ export function ValidateQueueScreen() {
           <ActivityIndicator size="large" color={Colors.ivoryBlue} />
         </View>
         {pendingVotes.length > 0 && (
-          <View style={styles.unsavedBanner}>
+          <View style={[styles.unsavedBanner, styles.unsavedBannerAbsolute]}>
             <View style={styles.unsavedContent}>
               <Text style={styles.unsavedBadge}>⚠</Text>
               <Text style={styles.unsavedText}>
@@ -363,6 +381,7 @@ export function ValidateQueueScreen() {
   const isOwnSubmission = !isAudit && user && (currentItem as Submission).user_id === user.id;
   const beforeUri = currentItem.before_photo_url;
   const afterUri = currentItem.after_photo_url;
+  const isSinglePhoto = (currentItem as Submission & { is_single_photo?: boolean })?.is_single_photo === true;
   const juryTaskNum = currentIndex + 1;
 
   return (
@@ -374,29 +393,42 @@ export function ValidateQueueScreen() {
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
+        showsVerticalScrollIndicator={true}
+        bounces={true}
       >
-        <Animated.View style={{ opacity: fadeAnim }}>
-          {/* Quest Rules */}
-          <View style={styles.questRulesCard}>
-            <Text style={styles.questRulesTitle}>Quest rules</Text>
-            <View style={styles.questRulesList}>
-              <View style={styles.questRuleRow}>
-                <Text style={styles.questRuleIcon}>✓</Text>
-                <Text style={styles.questRuleItem}>Photo must be clear and in focus</Text>
-              </View>
-              <View style={styles.questRuleRow}>
-                <Text style={styles.questRuleIcon}>✓</Text>
-                <Text style={styles.questRuleItem}>No people or faces in frame</Text>
-              </View>
-              <View style={styles.questRuleRow}>
-                <Text style={styles.questRuleIcon}>✓</Text>
-                <Text style={styles.questRuleItem}>Before is dirty / after is visibly clean</Text>
-              </View>
-            </View>
+        <View>
+          {/* Campaign name */}
+          <View style={styles.campaignNameCard}>
+            <Text style={styles.campaignNameLabel}>Campaign</Text>
+            <Text style={styles.campaignNameTitle}>
+              {campaign?.title ?? (isAudit ? 'Spot check' : '—')}
+            </Text>
           </View>
 
-          {/* Review task card – primary blue, per HTML */}
+          {/* Rules of campaign */}
+          <View style={styles.questRulesCard}>
+            <Text style={styles.questRulesTitle}>Rules</Text>
+            {campaign?.description ? (
+              <Text style={styles.questRulesBody}>{campaign.description}</Text>
+            ) : (
+              <View style={styles.questRulesList}>
+                <View style={styles.questRuleRow}>
+                  <Text style={styles.questRuleIcon}>✓</Text>
+                  <Text style={styles.questRuleItem}>Photo must be clear and in focus</Text>
+                </View>
+                <View style={styles.questRuleRow}>
+                  <Text style={styles.questRuleIcon}>✓</Text>
+                  <Text style={styles.questRuleItem}>No people or faces in frame</Text>
+                </View>
+                <View style={styles.questRuleRow}>
+                  <Text style={styles.questRuleIcon}>✓</Text>
+                  <Text style={styles.questRuleItem}>Before is dirty / after is visibly clean</Text>
+                </View>
+              </View>
+            )}
+          </View>
+
+          {/* Submission – review task card */}
           <View style={styles.juryCard}>
             <View style={styles.juryBadge}>
               <Text style={styles.juryBadgeText}>
@@ -404,44 +436,64 @@ export function ValidateQueueScreen() {
               </Text>
             </View>
             <Text style={styles.juryTitle}>
-              Before & after
+              {isSinglePhoto ? 'Submission' : 'Submission (before & after)'}
             </Text>
 
-            <View style={styles.twoPhotosRow}>
-              <View style={styles.halfPhoto}>
-                <Text style={styles.photoLabel}>Before</Text>
+            {isSinglePhoto ? (
+              <View style={styles.singlePhotoRow}>
+                <Text style={styles.photoLabel}>Submission</Text>
                 {beforeUri && !imageErrors.before ? (
                   <Image
                     source={{ uri: beforeUri }}
-                    style={styles.submissionImage}
+                    style={styles.singlePhotoImage}
                     resizeMode="cover"
                     onError={onBeforeError}
                   />
                 ) : (
-                  <View style={styles.submissionImagePlaceholder}>
+                  <View style={styles.singlePhotoPlaceholder}>
                     <Text style={styles.submissionPlaceholder}>🖼️</Text>
                   </View>
                 )}
               </View>
-              <View style={styles.halfPhoto}>
-                <Text style={styles.photoLabel}>After</Text>
-                {afterUri && !imageErrors.after ? (
-                  <Image
-                    source={{ uri: afterUri }}
-                    style={styles.submissionImage}
-                    resizeMode="cover"
-                    onError={onAfterError}
-                  />
-                ) : (
-                  <View style={styles.submissionImagePlaceholder}>
-                    <Text style={styles.submissionPlaceholder}>🖼️</Text>
-                  </View>
-                )}
+            ) : (
+              <View style={styles.twoPhotosRow}>
+                <View style={styles.halfPhoto}>
+                  <Text style={styles.photoLabel}>Before</Text>
+                  {beforeUri && !imageErrors.before ? (
+                    <Image
+                      source={{ uri: beforeUri }}
+                      style={styles.submissionImage}
+                      resizeMode="cover"
+                      onError={onBeforeError}
+                    />
+                  ) : (
+                    <View style={styles.submissionImagePlaceholder}>
+                      <Text style={styles.submissionPlaceholder}>🖼️</Text>
+                    </View>
+                  )}
+                </View>
+                <View style={styles.halfPhoto}>
+                  <Text style={styles.photoLabel}>After</Text>
+                  {afterUri && !imageErrors.after ? (
+                    <Image
+                      source={{ uri: afterUri }}
+                      style={styles.submissionImage}
+                      resizeMode="cover"
+                      onError={onAfterError}
+                    />
+                  ) : (
+                    <View style={styles.submissionImagePlaceholder}>
+                      <Text style={styles.submissionPlaceholder}>🖼️</Text>
+                    </View>
+                  )}
+                </View>
               </View>
-            </View>
+            )}
 
             <Text style={styles.juryQuestion}>
-              Does this before & after look valid and follow the mission rules?
+              {isSinglePhoto
+                ? 'Does this photo look valid and follow the mission rules?'
+                : 'Does this before & after look valid and follow the mission rules?'}
             </Text>
 
           {!isOwnSubmission ? (
@@ -510,27 +562,27 @@ export function ValidateQueueScreen() {
             <Text style={styles.trustedNote}>Your trusted network wins together — 3 wrong answers and the network loses 1 ticket.</Text>
           </View>
         </View>
-      </Animated.View>
-    </ScrollView>
+      </View>
 
-      {/* Big red unsaved indicator + Save button */}
-      {pendingVotes.length > 0 && (
-        <View style={styles.unsavedBanner}>
-          <View style={styles.unsavedContent}>
-            <Text style={styles.unsavedBadge}>⚠</Text>
-            <Text style={styles.unsavedText}>
-              {pendingVotes.length} vote{pendingVotes.length !== 1 ? 's' : ''} not saved
-            </Text>
+        {/* Big red unsaved indicator + Save button - inside ScrollView so it doesn't block scrolling */}
+        {pendingVotes.length > 0 && (
+          <View style={[styles.unsavedBanner, styles.unsavedBannerInScroll]}>
+            <View style={styles.unsavedContent}>
+              <Text style={styles.unsavedBadge}>⚠</Text>
+              <Text style={styles.unsavedText}>
+                {pendingVotes.length} vote{pendingVotes.length !== 1 ? 's' : ''} not saved
+              </Text>
+            </View>
+            <Button
+              title="Save votes"
+              variant="primary"
+              onPress={handleSavePress}
+              loading={saveMutation.isPending}
+              style={styles.saveButton}
+            />
           </View>
-          <Button
-            title="Save votes"
-            variant="primary"
-            onPress={handleSavePress}
-            loading={saveMutation.isPending}
-            style={styles.saveButton}
-          />
-        </View>
-      )}
+        )}
+    </ScrollView>
 
       {/* Confirm Save Modal */}
       <Modal
@@ -663,6 +715,28 @@ const styles = StyleSheet.create({
     color: Colors.white,
     marginBottom: Spacing.md,
   },
+  campaignNameCard: {
+    backgroundColor: Colors.white,
+    borderRadius: 24,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.backgroundDark,
+    ...Shadows.sm,
+  },
+  campaignNameLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.textGray,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  campaignNameTitle: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 18,
+    color: Colors.ivoryBlue,
+  },
   questRulesCard: {
     backgroundColor: Colors.white,
     borderRadius: 24,
@@ -678,6 +752,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: Colors.ivoryBlue,
     marginBottom: Spacing.md,
+  },
+  questRulesBody: {
+    fontSize: 14,
+    color: Colors.textGray,
+    lineHeight: 22,
   },
   questRulesList: {
     gap: 12,
@@ -704,6 +783,25 @@ const styles = StyleSheet.create({
   },
   emptyEmoji: {
     fontSize: 40,
+  },
+  singlePhotoRow: {
+    marginBottom: Spacing.lg,
+    position: 'relative',
+    backgroundColor: Colors.backgroundDark,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  singlePhotoImage: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: Colors.backgroundDark,
+  },
+  singlePhotoPlaceholder: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: Colors.backgroundDark,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   twoPhotosRow: {
     flexDirection: 'row',
@@ -927,10 +1025,6 @@ const styles = StyleSheet.create({
   },
   // Unsaved votes banner
   unsavedBanner: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     backgroundColor: '#B91C1C',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
@@ -942,6 +1036,17 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     ...Shadows.card,
+  },
+  unsavedBannerInScroll: {
+    marginTop: Spacing.lg,
+    marginHorizontal: -Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  unsavedBannerAbsolute: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
   unsavedContent: {
     flexDirection: 'row',
