@@ -14,6 +14,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp as RNRouteProp } from '@react-navigation/native';
 import { AppStackParamList } from '../../navigation/AppNavigator';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { api } from '../../api/client';
 import { CameraCapture } from '../../components/CameraCapture';
@@ -159,7 +160,7 @@ export function FaceVerificationScreen() {
             <CameraCapture
               cameraType="front"
               onCapture={handleSelfieCapture}
-              onError={(error) => Alert.alert('Error', error)}
+              onError={(error) => Alert.alert('Error', typeof error === 'string' ? error : (error?.message ?? 'Camera error'))}
             />
           </View>
         )}
@@ -184,62 +185,61 @@ export function FaceVerificationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.background,
   },
   content: {
-    padding: 20,
+    padding: Spacing.lg,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 12,
-    color: '#000',
+    ...Typography.cardTitle,
+    fontSize: 22,
+    marginBottom: Spacing.md,
+    color: Colors.textPrimary,
   },
   description: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 8,
+    ...Typography.body,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
     lineHeight: 22,
   },
   subDescription: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 24,
+    ...Typography.metadata,
+    marginBottom: Spacing.lg,
     lineHeight: 20,
   },
   previewContainer: {
-    marginTop: 16,
+    marginTop: Spacing.md,
   },
   cameraContainer: {
-    marginTop: 16,
+    marginTop: Spacing.md,
     minHeight: 400,
   },
   enrollButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: Colors.chartBlue,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: Spacing.md,
+    ...Shadows.card,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   enrollButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.white,
+    ...Typography.button,
   },
   button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: Colors.chartBlue,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: Spacing.lg,
+    ...Shadows.sm,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.white,
+    ...Typography.button,
   },
   sponsorAd: {
     marginTop: 28,

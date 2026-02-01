@@ -1,6 +1,6 @@
 import * as React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { TouchableOpacity, Text, StyleSheet, ViewStyle, TextStyle, ActivityIndicator, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors, Typography, Shadows, BorderRadius, Spacing } from '../theme/theme';
 
 interface ButtonProps {
@@ -11,50 +11,54 @@ interface ButtonProps {
   textStyle?: TextStyle;
   disabled?: boolean;
   loading?: boolean;
+  /** Ionicons name for leading icon (e.g. 'play', 'add') */
+  icon?: keyof typeof Ionicons.glyphMap;
 }
 
-export function Button({ title, onPress, variant = 'primary', style, textStyle, disabled, loading }: ButtonProps) {
+export function Button({ title, onPress, variant = 'primary', style, textStyle, disabled, loading, icon }: ButtonProps) {
   const isDisabled = disabled || loading;
-  const opacity = isDisabled ? 0.5 : 0.8;
+  const opacity = isDisabled ? 0.5 : 0.9;
+  const iconColor = variant === 'success' ? Colors.white : Colors.textPrimary;
 
   if (variant === 'primary') {
     return (
       <TouchableOpacity
         onPress={isDisabled ? undefined : onPress}
         activeOpacity={opacity}
-        style={[styles.shadow, style, isDisabled && { opacity: 0.5 }]}
+        style={[styles.primaryButton, style, isDisabled && { opacity: 0.5 }]}
       >
-        <LinearGradient
-          colors={Colors.primaryGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.primaryButton}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={Colors.white} />
-          ) : (
-            <Text style={[styles.buttonText, textStyle]}>{title}</Text>
-          )}
-        </LinearGradient>
+        {loading ? (
+          <ActivityIndicator size="small" color={Colors.textPrimary} />
+        ) : (
+          <View style={styles.buttonContent}>
+            {icon != null && (
+              <Ionicons name={icon} size={20} color={iconColor} style={styles.buttonIcon} />
+            )}
+            <Text style={[styles.primaryButtonText, textStyle]}>{title.toUpperCase()}</Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   }
 
   if (variant === 'success') {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.8} disabled={isDisabled} style={[styles.shadow, style, isDisabled && { opacity: 0.5 }]}>
-        <LinearGradient
-          colors={Colors.successGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.successButton}
-        >
-          {loading ? (
-            <ActivityIndicator size="small" color={Colors.white} />
-          ) : (
-            <Text style={[styles.buttonText, textStyle]}>{title}</Text>
-          )}
-        </LinearGradient>
+      <TouchableOpacity
+        onPress={isDisabled ? undefined : onPress}
+        activeOpacity={opacity}
+        disabled={isDisabled}
+        style={[styles.successButton, style, isDisabled && { opacity: 0.5 }]}
+      >
+        {loading ? (
+          <ActivityIndicator size="small" color={Colors.white} />
+        ) : (
+          <View style={styles.buttonContent}>
+            {icon != null && (
+              <Ionicons name={icon} size={20} color={Colors.white} style={styles.buttonIcon} />
+            )}
+            <Text style={[styles.successButtonText, textStyle]}>{title.toUpperCase()}</Text>
+          </View>
+        )}
       </TouchableOpacity>
     );
   }
@@ -67,43 +71,67 @@ export function Button({ title, onPress, variant = 'primary', style, textStyle, 
       style={[styles.secondaryButton, style, isDisabled && { opacity: 0.5 }]}
     >
       {loading ? (
-        <ActivityIndicator size="small" color={Colors.primaryBright} />
+        <ActivityIndicator size="small" color={Colors.textPrimary} />
       ) : (
-        <Text style={[styles.secondaryButtonText, textStyle]}>{title}</Text>
+        <View style={styles.buttonContent}>
+          {icon != null && (
+            <Ionicons name={icon} size={18} color={Colors.textPrimary} style={styles.buttonIcon} />
+          )}
+          <Text style={[styles.secondaryButtonText, textStyle]}>{title.toUpperCase()}</Text>
+        </View>
       )}
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
-  shadow: Shadows.primary,
-  primaryButton: {
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.xl,
-    borderRadius: BorderRadius.md,
+  buttonContent: {
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  buttonIcon: {
+    marginRight: 8,
+  },
+  primaryButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.md + 6,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.primary,
+  },
+  primaryButtonText: {
+    ...Typography.button,
+    color: Colors.textPrimary,
   },
   successButton: {
-    paddingVertical: Spacing.md,
+    backgroundColor: Colors.grass,
+    paddingVertical: Spacing.md + 6,
     paddingHorizontal: Spacing.xl,
-    borderRadius: BorderRadius.md,
+    borderRadius: BorderRadius.lg,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Shadows.primary,
+  },
+  successButtonText: {
+    ...Typography.button,
+    color: Colors.white,
   },
   secondaryButton: {
-    paddingVertical: Spacing.md - 3, // Adjust for border
-    paddingHorizontal: Spacing.xl - 3,
-    borderRadius: BorderRadius.md,
-    borderWidth: 3,
-    borderColor: Colors.primaryBright,
-    backgroundColor: 'transparent',
+    backgroundColor: Colors.primaryLight,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    ...Shadows.sm,
   },
-  buttonText: Typography.button,
   secondaryButtonText: {
     ...Typography.button,
-    color: Colors.primaryDark,
+    color: Colors.textPrimary,
+    fontSize: 14,
   },
 });

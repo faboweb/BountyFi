@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../navigation/AppNavigator';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { api } from '../../api/client';
 import { useAuth } from '../../auth/context';
 import { LeaderboardEntry } from '../../api/types';
@@ -98,7 +99,7 @@ export function LeaderboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.background,
   },
   userHighlight: {
     backgroundColor: '#007AFF',
@@ -118,7 +119,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.white,
     borderRadius: 8,
     padding: 12,
     marginBottom: 8,
@@ -129,7 +130,7 @@ const styles = StyleSheet.create({
     borderColor: '#007AFF',
   },
   topThreeRow: {
-    backgroundColor: '#FFF9E6',
+    backgroundColor: Colors.accent + '30',
   },
   rankContainer: {
     width: 50,

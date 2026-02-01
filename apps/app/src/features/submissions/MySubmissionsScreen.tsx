@@ -13,6 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../navigation/AppNavigator';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { api } from '../../api/client';
 import { Submission } from '../../api/types';
 
@@ -118,7 +119,7 @@ export function MySubmissionsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -165,7 +166,7 @@ const styles = StyleSheet.create({
     width: '30%',
     height: 80,
     borderRadius: 8,
-    backgroundColor: '#000',
+    backgroundColor: Colors.textPrimary,
   },
   cardFooter: {
     flexDirection: 'row',

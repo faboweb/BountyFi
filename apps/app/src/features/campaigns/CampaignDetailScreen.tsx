@@ -146,11 +146,11 @@ export function CampaignDetailScreen() {
               {campaign.sponsors.map((sponsor: { name: string; type?: string }, index: number) => (
                 <View key={index} style={styles.sponsorRow}>
                   <Text style={styles.sponsorName}>{sponsor.name}</Text>
-                  {sponsor.type && (
+                  {sponsor.type ? (
                     <Text style={styles.sponsorType}>
                       {sponsor.type === 'cafe' ? 'Café' : sponsor.type === 'company' ? 'Company' : 'Individual'}
                     </Text>
-                  )}
+                  ) : null}
                 </View>
               ))}
             </View>
@@ -184,17 +184,17 @@ export function CampaignDetailScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
   },
   loadingText: {
     ...Typography.body,
-    color: Colors.textGray,
+    color: Colors.textSecondary,
   },
   headerBar: {
     flexDirection: 'row',
@@ -202,7 +202,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
   },
   headerIcon: {
     width: 40,
@@ -211,14 +211,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   headerIconText: {
-    fontSize: 24,
-    color: Colors.ivoryBlueDark,
+    fontSize: 22,
+    color: Colors.textPrimary,
   },
   headerTitle: {
-    ...Typography.body,
-    fontWeight: '700',
-    fontSize: 18,
-    color: Colors.ivoryBlueDark,
+    ...Typography.cardTitle,
+    fontSize: 17,
+    color: Colors.textPrimary,
   },
   container: {
     flex: 1,
@@ -229,23 +228,23 @@ const styles = StyleSheet.create({
   },
   missionHeader: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
     alignItems: 'center',
     ...Shadows.card,
   },
   missionIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: Colors.cream,
+    width: 72,
+    height: 72,
+    borderRadius: BorderRadius.xl,
+    backgroundColor: Colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
   missionIconEmoji: {
-    fontSize: 40,
+    fontSize: 36,
   },
   missionImage: {
     width: '100%',
@@ -254,29 +253,27 @@ const styles = StyleSheet.create({
     resizeMode: 'cover',
   },
   missionTitle: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '700',
-    fontSize: 22,
-    color: Colors.ivoryBlueDark,
+    ...Typography.cardTitle,
+    fontSize: 20,
+    color: Colors.textPrimary,
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
   missionSubtitle: {
-    fontSize: 14,
-    color: Colors.textGray,
+    ...Typography.metadata,
+    color: Colors.textSecondary,
     textAlign: 'center',
   },
   checkpointList: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     ...Shadows.card,
   },
   checkpointListTitle: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '600',
-    fontSize: 18,
-    color: Colors.ivoryBlueDark,
+    ...Typography.cardTitle,
+    fontSize: 17,
+    color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
   checkpointItem: {
@@ -285,18 +282,17 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
     padding: Spacing.md,
     marginBottom: 12,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.primaryLight,
     borderRadius: BorderRadius.lg,
   },
   checkpointNumber: {
     width: 40,
     height: 40,
-    borderRadius: 12,
+    borderRadius: BorderRadius.md,
     overflow: 'hidden',
   },
   checkpointNumberText: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '700',
+    ...Typography.cardTitle,
     fontSize: 18,
     color: Colors.white,
     textAlign: 'center',
@@ -306,28 +302,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   checkpointName: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '600',
-    fontSize: 16,
-    color: Colors.ivoryBlueDark,
+    ...Typography.cardTitle,
+    fontSize: 15,
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   checkpointDistance: {
-    fontSize: 13,
-    color: Colors.textGray,
+    ...Typography.metadata,
+    color: Colors.textSecondary,
   },
   prizeChestCard: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     marginTop: Spacing.lg,
     ...Shadows.card,
   },
   prizeChestTitle: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '700',
-    fontSize: 18,
-    color: Colors.ivoryBlueDark,
+    ...Typography.cardTitle,
+    fontSize: 17,
+    color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
   prizeList: {
@@ -338,41 +332,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.creamDark,
+    borderBottomColor: Colors.primaryLight,
   },
   prizeImage: {
     width: 40,
     height: 40,
-    borderRadius: 8,
+    borderRadius: BorderRadius.sm,
     marginRight: 12,
   },
   prizeLabel: {
-    fontSize: 16,
-    color: Colors.ivoryBlueDark,
-    fontWeight: '600',
+    ...Typography.cardTitle,
+    fontSize: 15,
+    color: Colors.textPrimary,
   },
   prizeSponsor: {
-    fontSize: 12,
-    color: Colors.textGray,
+    ...Typography.metadata,
     marginTop: 2,
+    color: Colors.textSecondary,
   },
   prizeChestFallback: {
-    fontSize: 14,
-    color: Colors.textGray,
-    lineHeight: 22,
+    ...Typography.metadata,
+    lineHeight: 20,
+    color: Colors.textSecondary,
   },
   sponsoredByCard: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
     marginTop: Spacing.lg,
     ...Shadows.card,
   },
   sponsoredByTitle: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '700',
-    fontSize: 18,
-    color: Colors.ivoryBlueDark,
+    ...Typography.cardTitle,
+    fontSize: 17,
+    color: Colors.textPrimary,
     marginBottom: Spacing.md,
   },
   sponsorList: {
@@ -384,23 +377,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.creamDark,
+    borderBottomColor: Colors.primaryLight,
   },
   sponsorName: {
-    fontSize: 16,
-    color: Colors.ivoryBlueDark,
-    fontWeight: '600',
+    ...Typography.cardTitle,
+    fontSize: 15,
+    color: Colors.textPrimary,
   },
   sponsorType: {
-    fontSize: 13,
-    color: Colors.textGray,
+    ...Typography.metadata,
+    color: Colors.textSecondary,
     textTransform: 'capitalize',
   },
   checkpointReward: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '700',
-    fontSize: 18,
-    color: Colors.sunshine,
+    ...Typography.cardTitle,
+    fontSize: 17,
+    color: Colors.chartBlue,
   },
   footer: {
     marginTop: Spacing.xl,
@@ -413,18 +405,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sponsorMissionText: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '600',
-    fontSize: 16,
-    color: Colors.ivoryBlue,
+    ...Typography.cardTitle,
+    fontSize: 15,
+    color: Colors.chartBlue,
   },
   sponsorMissionHint: {
-    fontSize: 12,
-    color: Colors.textGray,
+    ...Typography.metadata,
     marginTop: 2,
+    color: Colors.textSecondary,
   },
   ctaButton: {
     width: '100%',
   },
-
 });

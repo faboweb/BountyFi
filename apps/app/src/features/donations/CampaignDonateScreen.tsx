@@ -1,6 +1,7 @@
 // Donate options for a campaign – same content as former Donations tab
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 
 export function CampaignDonateScreen() {
   return (
@@ -58,57 +59,59 @@ export function CampaignDonateScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.background,
   },
   content: {
-    padding: 20,
+    padding: Spacing.lg,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#000',
+    ...Typography.cardTitle,
+    fontSize: 24,
+    marginBottom: Spacing.sm,
+    color: Colors.textPrimary,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
+    ...Typography.body,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    ...Shadows.card,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 8,
+    ...Typography.cardTitle,
+    fontSize: 17,
+    marginBottom: Spacing.sm,
   },
   cardText: {
-    fontSize: 14,
-    color: '#555',
+    ...Typography.metadata,
+    color: Colors.textSecondary,
   },
   footerCard: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    padding: 18,
-    marginTop: 8,
+    backgroundColor: Colors.chartBlue,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
+    marginTop: Spacing.sm,
+    ...Shadows.card,
   },
   footerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
+    ...Typography.cardTitle,
+    fontSize: 17,
+    color: Colors.white,
     marginBottom: 6,
   },
   footerText: {
-    fontSize: 14,
-    color: '#e6f0ff',
+    ...Typography.metadata,
+    color: 'rgba(255,255,255,0.9)',
     marginBottom: 8,
   },
   footerHighlight: {
+    ...Typography.cardTitle,
     fontSize: 16,
-    fontWeight: '600',
-    color: '#fff',
+    color: Colors.white,
   },
 });

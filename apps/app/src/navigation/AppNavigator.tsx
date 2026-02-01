@@ -137,8 +137,8 @@ export function AppNavigator() {
       tabBar={(p) => <CustomTabBar {...p} />}
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.ivoryBlue,
-        tabBarInactiveTintColor: '#999999',
+        tabBarActiveTintColor: Colors.chartBlue,
+        tabBarInactiveTintColor: Colors.textSecondary,
         tabBarStyle: styles.tabBar,
         tabBarShowLabel: true,
         tabBarLabelStyle: styles.tabBarLabel,
@@ -149,6 +149,9 @@ export function AppNavigator() {
         component={QuestsStack}
         options={{
           title: 'Quests',
+          tabBarLabel: ({ focused, color }) => (
+            <Text style={[styles.tabBarLabel, { color }, !focused && { opacity: 0 }]}>{focused ? 'Quests' : ' '}</Text>
+          ),
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'home' : 'home-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
           ),
@@ -159,6 +162,9 @@ export function AppNavigator() {
         component={DonateStack}
         options={{
           title: 'Donate',
+          tabBarLabel: ({ focused, color }) => (
+            <Text style={[styles.tabBarLabel, { color }, !focused && { opacity: 0 }]}>{focused ? 'Donate' : ' '}</Text>
+          ),
           tabBarIcon: ({ focused, color }) => (
             <View style={styles.tabIconWrap}>
               <Ionicons name={focused ? 'heart' : 'heart-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
@@ -171,6 +177,9 @@ export function AppNavigator() {
         component={ValidateQueueScreen}
         options={{
           title: 'Verify',
+          tabBarLabel: ({ focused, color }) => (
+            <Text style={[styles.tabBarLabel, { color }, !focused && { opacity: 0 }]}>{focused ? 'Verify' : ' '}</Text>
+          ),
           tabBarIcon: ({ focused, color }) => (
             <View style={styles.tabIconWrap}>
               <Ionicons name={focused ? 'checkmark-circle' : 'checkmark-circle-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
@@ -183,6 +192,9 @@ export function AppNavigator() {
         component={TeamStack}
         options={{
           title: 'Team',
+          tabBarLabel: ({ focused, color }) => (
+            <Text style={[styles.tabBarLabel, { color }, !focused && { opacity: 0 }]}>{focused ? 'Team' : ' '}</Text>
+          ),
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'people' : 'people-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
           ),
@@ -193,6 +205,9 @@ export function AppNavigator() {
         component={ProfileStack}
         options={{
           title: 'Profile',
+          tabBarLabel: ({ focused, color }) => (
+            <Text style={[styles.tabBarLabel, { color }, !focused && { opacity: 0 }]}>{focused ? 'Profile' : ' '}</Text>
+          ),
           tabBarIcon: ({ focused, color }) => (
             <Ionicons name={focused ? 'person' : 'person-outline'} size={TAB_ICON_SIZE_ROUND} color={color} />
           ),
@@ -204,12 +219,17 @@ export function AppNavigator() {
 
 const styles = StyleSheet.create({
   tabBarOuter: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: Colors.background,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0,0,0,0.08)',
+    borderTopColor: 'rgba(155, 170, 184, 0.25)',
     paddingTop: 10,
     paddingBottom: 20,
     overflow: 'visible',
+    shadowColor: '#8B9AAA',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 4,
   },
   tabBarContentWrap: {
     overflow: 'visible',

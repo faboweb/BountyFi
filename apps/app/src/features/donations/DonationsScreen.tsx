@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } fr
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../navigation/AppNavigator';
-import { Colors, Typography, Spacing, BorderRadius } from '../../theme/theme';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { Badge } from '../../components/Badge';
@@ -85,7 +85,7 @@ export function DonationsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.lightGray,
+    backgroundColor: Colors.background,
   },
   container: {
     flex: 1,
@@ -125,16 +125,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   cardTitle: {
-    ...Typography.body,
-    fontWeight: '800',
-    fontSize: 18,
-    color: Colors.primaryDark,
+    ...Typography.cardTitle,
+    fontSize: 17,
+    color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   cardText: {
-    ...Typography.body,
-    color: '#4B5563', // Slightly darker than textGray for readability
-    lineHeight: 22,
+    ...Typography.metadata,
+    color: Colors.textSecondary,
+    lineHeight: 20,
   },
   footer: {
     marginTop: Spacing.lg,
@@ -142,8 +141,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     padding: Spacing.xl,
     borderRadius: BorderRadius.xl,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderWidth: 1,
+    borderColor: Colors.primaryLight,
+    ...Shadows.card,
   },
   footerTitle: {
     ...Typography.heading,

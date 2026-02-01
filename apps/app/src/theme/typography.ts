@@ -1,6 +1,6 @@
 /**
- * BountyFi typography - System default (Arial/Helvetica/sans-serif)
- * Headings: ExtraBold, Uppercase; Body: Regular; Buttons: Bold
+ * BountyFi typography - Modern sans-serif, neumorphic style
+ * Bold headings, uppercase buttons, regular body, monospace-like for numbers
  */
 
 import { TextStyle } from 'react-native';
@@ -12,43 +12,34 @@ export const fontFamily = {
 };
 
 export const typography = {
-  /** Main heading - 800, uppercase, letter-spacing */
   heading: {
     fontFamily: fontFamily.extraBold,
-    fontWeight: '800' as const,
+    fontWeight: '700' as const,
     fontSize: 28,
-    letterSpacing: 4,
-    textTransform: 'uppercase' as const,
-    color: '#1E3A8A',
+    color: '#2C2C2C',
   } satisfies TextStyle,
 
-  /** Section title */
   title: {
     fontFamily: fontFamily.bold,
-    fontWeight: '700' as const,
+    fontWeight: '600' as const,
     fontSize: 20,
-    letterSpacing: 1,
-    color: '#1E293B',
+    color: '#2C2C2C',
   } satisfies TextStyle,
 
-  /** Tagline / subtitle */
   tagline: {
     fontFamily: fontFamily.bold,
     fontWeight: '600' as const,
     fontSize: 16,
-    letterSpacing: 2,
     color: '#6B7280',
   } satisfies TextStyle,
 
-  /** Body */
   body: {
     fontFamily: fontFamily.regular,
     fontWeight: '400' as const,
     fontSize: 16,
-    color: '#1E293B',
+    color: '#2C2C2C',
   } satisfies TextStyle,
 
-  /** Body secondary */
   bodySecondary: {
     fontFamily: fontFamily.regular,
     fontWeight: '400' as const,
@@ -56,21 +47,34 @@ export const typography = {
     color: '#6B7280',
   } satisfies TextStyle,
 
-  /** Button text - bold, uppercase */
   button: {
     fontFamily: fontFamily.bold,
     fontWeight: '700' as const,
     fontSize: 16,
-    letterSpacing: 2,
     textTransform: 'uppercase' as const,
+    color: '#2C2C2C',
   } satisfies TextStyle,
 
-  /** Small / caption */
   caption: {
     fontFamily: fontFamily.regular,
     fontWeight: '400' as const,
     fontSize: 12,
     color: '#6B7280',
+  } satisfies TextStyle,
+
+  stat: {
+    fontFamily: fontFamily.bold,
+    fontWeight: '700' as const,
+    fontSize: 24,
+    color: '#2C2C2C',
+  } satisfies TextStyle,
+
+  timer: {
+    fontFamily: fontFamily.bold,
+    fontWeight: '700' as const,
+    fontSize: 32,
+    letterSpacing: 2,
+    color: '#2C2C2C',
   } satisfies TextStyle,
 } as const;
 

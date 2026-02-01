@@ -8,14 +8,14 @@ interface ProgressBarProps {
   style?: ViewStyle;
 }
 
-export function ProgressBar({ progress, color = Colors.primaryBright, style }: ProgressBarProps) {
+export function ProgressBar({ progress, color = Colors.accent, style }: ProgressBarProps) {
   return (
     <View style={[styles.container, style]}>
-      <View 
+      <View
         style={[
-          styles.fill, 
-          { width: `${Math.min(100, Math.max(0, progress))}%`, backgroundColor: color }
-        ]} 
+          styles.fill,
+          { width: `${Math.min(100, Math.max(0, progress))}%`, backgroundColor: color },
+        ]}
       />
     </View>
   );
@@ -23,8 +23,8 @@ export function ProgressBar({ progress, color = Colors.primaryBright, style }: P
 
 const styles = StyleSheet.create({
   container: {
-    height: 12,
-    backgroundColor: '#E5E7EB',
+    height: 10,
+    backgroundColor: Colors.primaryLight,
     borderRadius: BorderRadius.full,
     overflow: 'hidden',
     width: '100%',

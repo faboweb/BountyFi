@@ -138,7 +138,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.background,
   },
   scrollContent: {
     padding: Spacing.lg,
@@ -226,7 +226,7 @@ const styles = StyleSheet.create({
   progressFill: {
     height: '100%',
     width: '33%',
-    backgroundColor: '#6366F1',
+    backgroundColor: Colors.chartBlue,
     borderRadius: BorderRadius.full,
   },
   footer: {

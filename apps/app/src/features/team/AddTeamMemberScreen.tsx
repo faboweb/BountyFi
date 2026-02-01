@@ -10,9 +10,10 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ethers } from 'ethers';
 import { api, TRUSTNETWORK_ABI } from '../../api/client';
 import { Colors, Typography, Spacing, Shadows } from '../../theme/theme';
@@ -40,6 +41,42 @@ export function AddTeamMemberScreen() {
     queryFn: () => api.users.getMe(),
   });
   const trustedIds = user?.trusted_network_ids ?? [];
+
+  const addMemberMutation = useMutation({
+    mutationFn: (userId: string) => api.users.addTrustedMember(userId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
+      Alert.alert('Added', 'Member added to your team.', [
+        { text: 'OK', onPress: () => navigation.goBack() },
+      ]);
+    },
+    onError: (err: Error) => {
+      Alert.alert('Error', err.message || 'Could not add member.');
+    },
+  });
+
+  const handleAddByUsername = async () => {
+    const q = usernameQuery.trim();
+    setSearchError(null);
+    if (!q) {
+      setSearchError('Enter a username or name.');
+      return;
+    }
+    try {
+      const result = await api.users.searchByUsername(q);
+      if (result) {
+        if (trustedIds.includes(result.id)) {
+          setSearchError('This person is already in your team.');
+          return;
+        }
+        addMemberMutation.mutate(result.id);
+      } else {
+        setSearchError('No user found. Try another username.');
+      }
+    } catch (e) {
+      setSearchError('Search failed. Please try again.');
+    }
+  };
 
   const handleSearch = async () => {
     const q = usernameQuery.trim();
@@ -134,46 +171,32 @@ export function AddTeamMemberScreen() {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.section}>
-            <Text style={styles.hint}>Search for a friend by email or name to invite them to your Trusted Network.</Text>
-            <View style={styles.searchRow}>
-                <TextInput
-                style={styles.input}
-                placeholder="Email, name, or username"
-                placeholderTextColor={Colors.textGray}
-                value={usernameQuery}
-                onChangeText={(t) => {
-                    setUsernameQuery(t);
-                    setSearchError(null);
-                    setFoundUser(null);
-                }}
-                autoCapitalize="none"
-                autoCorrect={false}
-                />
-                <TouchableOpacity 
-                    style={styles.searchBtn} 
-                    onPress={handleSearch}
-                    disabled={isSearching}
-                >
-                    {isSearching ? <ActivityIndicator color={Colors.white} /> : <Text style={styles.searchBtnText}>🔍</Text>}
-                </TouchableOpacity>
-            </View>
-            
-            {searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
-
-            {foundUser && (
-                <View style={styles.foundUserCard}>
-                    <View style={styles.avatarMini}>
-                        <Text style={styles.avatarMiniText}>{(foundUser.name || foundUser.email || 'U')[0].toUpperCase()}</Text>
-                    </View>
-                    <View style={styles.userInfo}>
-                        <Text style={styles.userName}>{foundUser.name || 'Anonymous'}</Text>
-                        <Text style={styles.userEmail}>{foundUser.email}</Text>
-                    </View>
-                    <TouchableOpacity style={styles.inviteButton} onPress={handleInitiateRequest}>
-                        <Text style={styles.inviteButtonText}>Invite</Text>
-                    </TouchableOpacity>
-                </View>
-            )}
+            <Text style={styles.hint}>Enter their username, name, or email to add them to your team.</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Username, name, or email"
+              placeholderTextColor={Colors.textGray}
+              value={usernameQuery}
+              onChangeText={(t) => {
+                setUsernameQuery(t);
+                setSearchError(null);
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {searchError ? <Text style={styles.errorText}>{typeof searchError === 'string' ? searchError : String(searchError)}</Text> : null}
+            <TouchableOpacity
+              style={[styles.primaryButton, addMemberMutation.isPending && styles.primaryButtonDisabled]}
+              onPress={handleAddByUsername}
+              disabled={addMemberMutation.isPending}
+              activeOpacity={0.8}
+            >
+              {addMemberMutation.isPending ? (
+                <ActivityIndicator size="small" color={Colors.white} />
+              ) : (
+                <Text style={styles.primaryButtonText}>Add by username</Text>
+              )}
+            </TouchableOpacity>
           </View>
           <View style={{ height: 100 }} />
         </ScrollView>
@@ -200,7 +223,7 @@ export function AddTeamMemberScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
   },
   flex: {
     flex: 1,
@@ -213,7 +236,7 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.creamDark,
+    borderBottomColor: Colors.backgroundDark,
   },
   backBtn: {
     minWidth: 44,
@@ -221,12 +244,12 @@ const styles = StyleSheet.create({
   },
   backBtnText: {
     fontSize: 24,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
   },
   headerTitle: {
     ...Typography.heading,
     fontSize: 18,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
   },
   container: {
     flex: 1,
@@ -252,11 +275,11 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 48,
     borderWidth: 2,
-    borderColor: Colors.creamDark,
+    borderColor: Colors.backgroundDark,
     borderRadius: 12,
     paddingHorizontal: Spacing.md,
     fontSize: 16,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
     backgroundColor: Colors.white,
   },
   searchBtn: {

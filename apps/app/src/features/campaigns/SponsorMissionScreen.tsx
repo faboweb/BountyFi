@@ -154,7 +154,7 @@ export function SponsorMissionScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
   },
   headerBar: {
     flexDirection: 'row',
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
   },
   headerIcon: {
     width: 40,
@@ -172,13 +172,13 @@ const styles = StyleSheet.create({
   },
   headerIconText: {
     fontSize: 24,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
   },
   headerTitle: {
     ...Typography.body,
     fontWeight: '700',
     fontSize: 18,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
   },
   keyboardView: {
     flex: 1,
@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
     fontSize: 20,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   introSubtitle: {
@@ -216,7 +216,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '600',
     fontSize: 16,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   typeRow: {
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     backgroundColor: Colors.white,
     borderWidth: 2,
-    borderColor: Colors.creamDark,
+    borderColor: Colors.backgroundDark,
     ...Shadows.card,
   },
   typeChipSelected: {
@@ -246,19 +246,19 @@ const styles = StyleSheet.create({
   typeLabel: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
   },
   typeLabelSelected: {
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
   },
   input: {
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     fontSize: 16,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
     borderWidth: 1,
-    borderColor: Colors.creamDark,
+    borderColor: Colors.backgroundDark,
     ...Shadows.card,
   },
   inputMultiline: {
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
     fontSize: 24,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   successText: {

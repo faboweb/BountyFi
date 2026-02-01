@@ -6,11 +6,12 @@ interface CardProps {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   noPadding?: boolean;
+  elevated?: boolean;
 }
 
-export function Card({ children, style, noPadding }: CardProps) {
+export function Card({ children, style, noPadding, elevated }: CardProps) {
   return (
-    <View style={[styles.card, noPadding && { padding: 0 }, style]}>
+    <View style={[styles.card, elevated && styles.cardElevated, noPadding && { padding: 0 }, style]}>
       {children}
     </View>
   );
@@ -21,9 +22,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
+    borderWidth: 0,
     ...Shadows.card,
     overflow: 'hidden',
+  },
+  cardElevated: {
+    ...Shadows.cardElevated,
   },
 });

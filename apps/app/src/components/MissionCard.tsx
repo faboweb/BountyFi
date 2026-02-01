@@ -61,11 +61,11 @@ export function MissionCard({
             </View>
           )}
 
-          {distance && (
+          {distance ? (
             <View style={[styles.overlayBadge, styles.distanceBadge]}>
               <Text style={styles.distanceText}>📍 {distance}</Text>
             </View>
-          )}
+          ) : null}
         </View>
 
         <View style={styles.content}>

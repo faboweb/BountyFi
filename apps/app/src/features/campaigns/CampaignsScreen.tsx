@@ -6,62 +6,43 @@ import {
   FlatList,
   SafeAreaView,
   TouchableOpacity,
-  Animated,
-  Dimensions,
   RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { AppStackParamList } from '../../navigation/AppNavigator';
-import { useAuth } from '../../auth/context';
 import { api } from '../../api/client';
 import type { Campaign } from '../../api/types';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
+import { BirdMascot } from '../../components/BirdMascot';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
-function displayNameFromUser(email: string | undefined): string {
-  if (!email) return 'there';
-  const part = email.split('@')[0];
-  return part ? part.charAt(0).toUpperCase() + part.slice(1).toLowerCase() : 'there';
+function progressToLabel(pct: number): string {
+  if (pct <= 0) return 'Not started';
+  if (pct < 35) return 'In progress';
+  if (pct < 75) return 'Halfway';
+  return 'Almost there';
+}
+
+function questToMetadata(questType: string): string {
+  switch (questType) {
+    case 'uniserv_cleanup':
+      return 'Before / after · Min 1 min · Once';
+    case 'no_burn':
+      return 'Photo + GPS · Once per day';
+    case 'ban_plastic':
+      return 'Selfie + tote · Chiang Mai';
+    default:
+      return '—';
+  }
 }
 
 export function CampaignsScreen() {
   const navigation = useNavigation<NavigationProp>();
-  const { user } = useAuth();
-  const userName = user?.name || displayNameFromUser(user?.email);
-
-  const winkScale = React.useRef(new Animated.Value(1)).current;
-  const smileScale = React.useRef(new Animated.Value(1)).current;
-  const smileOpacity = React.useRef(new Animated.Value(1)).current;
-
-  React.useEffect(() => {
-    const winkLoop = () => {
-      Animated.sequence([
-        Animated.timing(winkScale, { toValue: 0.05, duration: 120, useNativeDriver: true }),
-        Animated.timing(winkScale, { toValue: 1, duration: 120, useNativeDriver: true }),
-      ]).start(() => setTimeout(winkLoop, 2800));
-    };
-    winkLoop();
-  }, [winkScale]);
-
-  React.useEffect(() => {
-    const smileLoop = () => {
-      Animated.sequence([
-        Animated.parallel([
-          Animated.timing(smileScale, { toValue: 1.15, duration: 400, useNativeDriver: true }),
-          Animated.timing(smileOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
-        ]),
-        Animated.parallel([
-          Animated.timing(smileScale, { toValue: 1, duration: 400, useNativeDriver: true }),
-          Animated.timing(smileOpacity, { toValue: 0.92, duration: 400, useNativeDriver: true }),
-        ]),
-      ]).start(() => setTimeout(smileLoop, 3200));
-    };
-    setTimeout(smileLoop, 600);
-  }, [smileScale, smileOpacity]);
 
   const { data: campaigns, isLoading, refetch } = useQuery({
     queryKey: ['campaigns'],
@@ -69,59 +50,41 @@ export function CampaignsScreen() {
   });
 
   const [refreshing, setRefreshing] = React.useState(false);
-
   const onRefresh = React.useCallback(async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   }, [refetch]);
 
+  const raw = campaigns ?? [];
+  const listData = React.useMemo(() => {
+    return [...raw].sort((a: Campaign, b: Campaign) => {
+      const order = (c: Campaign) =>
+        c.quest_type === 'uniserv_cleanup' ? 0 : c.quest_type === 'no_burn' ? 1 : c.quest_type === 'ban_plastic' ? 2 : 3;
+      return order(a) - order(b);
+    });
+  }, [raw]);
+
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       <LinearGradient
-        colors={[Colors.ivoryBlue, Colors.ivoryBlueLight]}
-        style={styles.gradientHeader}
+        colors={[Colors.backgroundLight, Colors.background, Colors.background]}
+        locations={[0, 0.4, 1]}
+        style={styles.heroGradient}
       >
-        {/* Character bubble – animated wink + brighter smile */}
-        <View style={styles.characterBubble}>
-          <View style={styles.character}>
-            <LinearGradient
-              colors={[Colors.sunshine, Colors.coral]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={styles.characterEyes}>
-              <View style={styles.eye} />
-              <Animated.View style={[styles.eye, { transform: [{ scaleY: winkScale }] }]} />
-            </View>
-            <Animated.View
-              style={[
-                styles.characterMouth,
-                {
-                  transform: [{ scaleX: smileScale }, { scaleY: smileScale }],
-                  opacity: smileOpacity,
-                },
-              ]}
-            />
-          </View>
-          <Text style={styles.speechBubble}>
-            Hey {userName}! You're on fire today! 🔥{'\n'}
-            Ready to complete your daily mission?
-          </Text>
+        {/* Mascot */}
+        <View style={styles.mascotWrap}>
+          <BirdMascot size={150} active={false} />
         </View>
 
-        {/* Stats grid */}
-        <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{user?.tickets ?? 0}</Text>
-            <Text style={styles.statLabel}>Tickets Earned</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{user?.streak ?? 0}</Text>
-            <Text style={styles.statLabel}>Day Streak</Text>
-          </View>
+        {/* Hero copy – floating, no card */}
+        <View style={styles.heroCopyWrap}>
+          <Text style={styles.heroTitle}>Hey there, Hero!</Text>
+          <Text style={styles.heroSubtitle}>Ready to complete quests and help the planet?</Text>
         </View>
+
+        {/* Section label before quest cards */}
+        <Text style={styles.activeQuestsLabel}>Active quests for you:</Text>
       </LinearGradient>
     </View>
   );
@@ -133,14 +96,6 @@ export function CampaignsScreen() {
       </View>
     );
   }
-
-  // Surface community quests: Uniserv CMU Cleanup and No burning first (incentives + deterrence, low gameability)
-  const raw = campaigns ?? [];
-  const listData = [...raw].sort((a: Campaign, b: Campaign) => {
-    const order = (c: Campaign) =>
-      c.quest_type === 'uniserv_cleanup' ? 0 : c.quest_type === 'no_burn' ? 1 : c.quest_type === 'ban_plastic' ? 2 : 3;
-    return order(a) - order(b);
-  });
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -154,53 +109,60 @@ export function CampaignsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            tintColor={Colors.ivoryBlue}
-            colors={[Colors.ivoryBlue]}
+            tintColor={Colors.chartBlue}
+            colors={[Colors.chartBlue]}
           />
         }
-        renderItem={({ item }: { item: Campaign }) => {
+        renderItem={({ item, index }: { item: Campaign; index: number }) => {
           const isCleanup = item.quest_type === 'uniserv_cleanup';
           const isNoBurn = item.quest_type === 'no_burn';
           const isBanPlastic = item.quest_type === 'ban_plastic';
-          const isPending = item.status === 'pending_onchain';
           const hasDonations = (item.prize_total ?? 0) > 0;
-          const borderColor = isPending ? Colors.textGray : (!hasDonations ? '#CCCCCC' : (isCleanup ? Colors.grass : isNoBurn ? Colors.coral : isBanPlastic ? Colors.lavender : Colors.ivoryBlue));
-          const progress = isPending ? 0 : (!hasDonations ? 0 : (isCleanup ? 65 : isNoBurn ? 30 : isBanPlastic ? 45 : 50));
-          const subtitle =
-            isPending
-              ? 'Transaction is being confirmed on the blockchain...'
-              : (isCleanup
-                ? 'Before & after (min 1 min). One participation only.'
-                : isNoBurn
-                  ? 'One photo per day, 3 months. Photo + GPS.'
-                  : isBanPlastic
-                    ? 'Selfie + photo with tote/veggies. Chiang Mai.'
-                    : item.description);
+          const accentColor = !hasDonations ? Colors.textMuted : isCleanup ? Colors.grass : isNoBurn ? Colors.coral : isBanPlastic ? Colors.lavender : Colors.chartBlue;
+          const progress = !hasDonations ? 0 : (isCleanup ? 65 : isNoBurn ? 30 : isBanPlastic ? 45 : 50);
+          const metadata = questToMetadata(item.quest_type ?? '');
+          const progressLabel = progressToLabel(progress);
+          const iconName = isCleanup ? 'leaf-outline' : isNoBurn ? 'flame-outline' : isBanPlastic ? 'bag-handle-outline' : 'location-outline';
+          const isFirst = index === 0;
 
           return (
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => navigation.navigate('CampaignDetail', { campaignId: item.id })}
-              style={[styles.campaignCard, { borderLeftColor: borderColor, opacity: (hasDonations || isPending) ? 1 : 0.7 }]}
+              style={[
+                styles.campaignCard,
+                isFirst && styles.campaignCardFeatured,
+                { borderLeftColor: accentColor, opacity: hasDonations ? 1 : 0.85 },
+              ]}
             >
-              <Text style={[styles.campaignTitle, (!hasDonations && !isPending) && { color: '#888888' }]}>
-                {isPending ? '⌛' : (isCleanup ? '🌳' : isNoBurn ? '🚭' : isBanPlastic ? '🛍️' : '📍')} {item.title}
+              <View style={styles.campaignCardTop}>
+                <View style={[styles.campaignIconWrap, { backgroundColor: accentColor + '14' }]}>
+                  <Ionicons name={iconName as any} size={18} color={accentColor} />
+                </View>
+                {hasDonations ? (
+                  <View style={styles.tagWrap}>
+                    <View style={styles.tagDot} />
+                    <Text style={styles.tagText}>Active</Text>
+                  </View>
+                ) : null}
+              </View>
+              <Text style={[styles.campaignTitle, !hasDonations && { color: Colors.textMuted }]} numberOfLines={2}>
+                {item.title}
               </Text>
               <View style={styles.campaignProgress}>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${progress}%`,
-                        backgroundColor: borderColor,
-                      },
-                    ]}
-                  />
+                <View style={styles.progressBarWrap}>
+                  <View style={styles.progressBar}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { width: `${progress}%`, backgroundColor: accentColor },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.progressLabel, !hasDonations && { color: Colors.textMuted }]}>{progressLabel}</Text>
                 </View>
-                <Text style={[styles.progressText, !hasDonations && { color: '#888888' }]}>{progress}%</Text>
               </View>
-              <Text style={styles.campaignSubtitle} numberOfLines={2}>{subtitle}</Text>
+              <Text style={styles.campaignMetadata}>{metadata}</Text>
             </TouchableOpacity>
           );
         }}
@@ -212,106 +174,56 @@ export function CampaignsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
   },
   loadingText: {
     ...Typography.body,
-    color: Colors.textGray,
+    color: Colors.textSecondary,
   },
   headerContainer: {
-    marginBottom: Spacing.lg,
     overflow: 'hidden',
   },
-  gradientHeader: {
+  heroGradient: {
     paddingHorizontal: Spacing.lg,
-    paddingTop: 30,
-    paddingBottom: Spacing.xl,
-    minHeight: 320,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.md,
   },
-  characterBubble: {
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.xxl,
-    padding: Spacing.lg,
+  mascotWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: Spacing.md,
+  },
+  heroCopyWrap: {
+    alignItems: 'center',
     marginBottom: Spacing.lg,
-    ...Shadows.card,
   },
-  character: {
-    width: 120,
-    height: 120,
-    alignSelf: 'center',
-    marginBottom: Spacing.md,
-    borderRadius: 60,
-    overflow: 'hidden',
-    position: 'relative',
+  heroTitle: {
+    ...Typography.heading,
+    fontSize: 28,
+    fontWeight: '800',
+    color: Colors.ivoryBlue,
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
-  characterEyes: {
-    position: 'absolute',
-    top: '38%',
-    left: '50%',
-    flexDirection: 'row',
-    transform: [{ translateX: -25 }],
-    gap: 16,
-  },
-  eye: {
-    width: 18,
-    height: 22,
-    borderRadius: 9,
-    backgroundColor: Colors.ivoryBlueDark,
-  },
-  characterMouth: {
-    position: 'absolute',
-    bottom: '32%',
-    left: '50%',
-    width: 30,
-    height: 15,
-    marginLeft: -15,
-    borderBottomWidth: 3,
-    borderLeftWidth: 3,
-    borderRightWidth: 3,
-    borderColor: Colors.ivoryBlueDark,
-    borderTopLeftRadius: 0,
-    borderTopRightRadius: 0,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  speechBubble: {
-    fontFamily: Typography.heading.fontFamily,
+  heroSubtitle: {
+    ...Typography.body,
+    fontSize: 18,
     fontWeight: '600',
-    fontSize: 16,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textSecondary,
     textAlign: 'center',
     lineHeight: 24,
   },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: Spacing.lg,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.white,
-    borderRadius: BorderRadius.lg,
-    padding: Spacing.md,
-    alignItems: 'center',
-    ...Shadows.card,
-  },
-  statValue: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '700',
-    fontSize: 32,
-    color: Colors.ivoryBlue,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: Colors.textGray,
-    fontWeight: '500',
+  activeQuestsLabel: {
+    ...Typography.cardTitle,
+    fontSize: 15,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
   },
   listContent: {
     paddingHorizontal: Spacing.lg,
@@ -319,44 +231,81 @@ const styles = StyleSheet.create({
   },
   campaignCard: {
     backgroundColor: Colors.white,
-    borderRadius: 20,
+    borderRadius: BorderRadius.xl,
     padding: Spacing.lg,
-    marginBottom: 12,
-    borderLeftWidth: 6,
+    marginBottom: 14,
+    borderLeftWidth: 4,
     ...Shadows.card,
   },
+  campaignCardFeatured: {
+    ...Shadows.cardElevated,
+    marginBottom: 14,
+  },
+  campaignCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: Spacing.sm,
+  },
+  campaignIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tagWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  tagDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.textSecondary,
+  },
+  tagText: {
+    ...Typography.metadata,
+    fontSize: 10,
+    color: Colors.textSecondary,
+    fontWeight: '500',
+    textTransform: 'none',
+  },
   campaignTitle: {
-    fontFamily: Typography.heading.fontFamily,
-    fontWeight: '600',
-    fontSize: 18,
-    color: Colors.ivoryBlueDark,
+    ...Typography.cardTitle,
     marginBottom: Spacing.sm,
   },
   campaignProgress: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
     marginBottom: Spacing.sm,
   },
+  progressBarWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
   progressBar: {
-    flex: 1,
-    height: 12,
-    backgroundColor: Colors.cream,
-    borderRadius: 12,
+    width: '60%',
+    height: 6,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: BorderRadius.full,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 12,
+    borderRadius: BorderRadius.full,
   },
-  progressText: {
-    fontSize: 13,
-    color: Colors.ivoryBlue,
-    fontWeight: '600',
-    minWidth: 36,
+  progressLabel: {
+    ...Typography.metadata,
+    fontWeight: '500',
+    color: Colors.textPrimary,
   },
-  campaignSubtitle: {
-    fontSize: 13,
-    color: Colors.textGray,
+  campaignMetadata: {
+    ...Typography.metadata,
   },
 });

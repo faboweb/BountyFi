@@ -17,6 +17,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp as RNRouteProp } from '@react-navigation/native';
 import { AppStackParamList } from '../../navigation/AppNavigator';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSignEvmTypedData, useEvmAddress } from '@coinbase/cdp-hooks';
 import { api } from '../../api/client';
@@ -509,7 +510,7 @@ export function SubmitProofScreen() {
             </View>
             {(validationErrors.length > 0 || cameraError) ? (
               <View style={styles.inlineError}>
-                <Text style={styles.inlineErrorText}>{cameraError || validationErrors[0]}</Text>
+                <Text style={styles.inlineErrorText}>{(typeof cameraError === 'string' ? cameraError : '') || validationErrors[0] || ''}</Text>
               </View>
             ) : null}
             {selfiePhoto ? (
@@ -531,7 +532,7 @@ export function SubmitProofScreen() {
               <CameraCapture
                 cameraType="front"
                 onCapture={(uri, gps) => handlePhotoCapture(uri, gps)}
-                onError={(error) => setCameraError(error)}
+                onError={(error) => setCameraError(typeof error === 'string' ? error : (error?.message ?? 'Camera error'))}
                 requireGPS={true}
               />
             )}
@@ -569,7 +570,7 @@ export function SubmitProofScreen() {
             </View>
             {(validationErrors.length > 0 || cameraError) ? (
               <View style={styles.inlineError}>
-                <Text style={styles.inlineErrorText}>{cameraError || validationErrors[0]}</Text>
+                <Text style={styles.inlineErrorText}>{(typeof cameraError === 'string' ? cameraError : '') || validationErrors[0] || ''}</Text>
               </View>
             ) : null}
             {beforePhoto ? (
@@ -602,7 +603,7 @@ export function SubmitProofScreen() {
               <CameraCapture
                 cameraType="back"
                 onCapture={(uri, gps) => handlePhotoCapture(uri, gps)}
-                onError={(error) => setCameraError(error)}
+                onError={(error) => setCameraError(typeof error === 'string' ? error : (error?.message ?? 'Camera error'))}
                 requireGPS={true}
               />
             )}
@@ -622,7 +623,7 @@ export function SubmitProofScreen() {
             </View>
             {(validationErrors.length > 0 || cameraError) ? (
               <View style={styles.inlineError}>
-                <Text style={styles.inlineErrorText}>{cameraError || validationErrors[0]}</Text>
+                <Text style={styles.inlineErrorText}>{(typeof cameraError === 'string' ? cameraError : '') || validationErrors[0] || ''}</Text>
               </View>
             ) : null}
             {afterPhoto ? (
@@ -659,7 +660,7 @@ export function SubmitProofScreen() {
               <CameraCapture
                 cameraType="back"
                 onCapture={(uri, gps) => handlePhotoCapture(uri, gps)}
-                onError={(error) => setCameraError(error)}
+                onError={(error) => setCameraError(typeof error === 'string' ? error : (error?.message ?? 'Camera error'))}
                 requireGPS={true}
               />
             )}
@@ -714,183 +715,181 @@ export function SubmitProofScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.background,
   },
   content: {
-    padding: 16,
+    padding: Spacing.md,
   },
   stepIndicator: {
-    marginBottom: 24,
+    marginBottom: Spacing.lg,
   },
   stepText: {
-    fontSize: 14,
-    color: '#8E8E93',
+    ...Typography.metadata,
     fontWeight: '600',
   },
   stepContent: {
     flex: 1,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    ...Typography.cardTitle,
+    fontSize: 22,
+    marginBottom: Spacing.sm,
   },
   description: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 24,
+    ...Typography.body,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.lg,
   },
   photoRequirements: {
-    backgroundColor: '#F0F4F8',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 20,
+    backgroundColor: Colors.primaryLight,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.lg,
     borderLeftWidth: 4,
-    borderLeftColor: '#5B8DAF',
+    borderLeftColor: Colors.chartBlue,
   },
   photoRequirementsTitle: {
+    ...Typography.cardTitle,
     fontSize: 14,
-    fontWeight: '700',
-    color: '#333',
     marginBottom: 6,
   },
   photoRequirementsBullet: {
-    fontSize: 14,
-    color: '#555',
+    ...Typography.metadata,
     lineHeight: 20,
   },
   inlineError: {
-    backgroundColor: '#FFF0F0',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: Colors.error + '12',
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
     borderLeftWidth: 4,
-    borderLeftColor: '#E57373',
+    borderLeftColor: Colors.error,
   },
   inlineErrorText: {
-    fontSize: 14,
-    color: '#C62828',
+    ...Typography.metadata,
+    color: Colors.error,
     fontWeight: '500',
   },
   metadata: {
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 12,
+    backgroundColor: Colors.white,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+    marginTop: Spacing.md,
+    ...Shadows.sm,
   },
   metadataText: {
-    fontSize: 14,
-    color: '#000',
+    ...Typography.metadata,
+    color: Colors.textPrimary,
     marginBottom: 4,
   },
   reviewPhoto: {
-    marginBottom: 16,
+    marginBottom: Spacing.md,
   },
   reviewLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
+    ...Typography.cardTitle,
+    fontSize: 15,
+    marginBottom: Spacing.sm,
   },
   submitButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: Colors.chartBlue,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     alignItems: 'center',
-    marginTop: 24,
+    marginTop: Spacing.lg,
+    ...Shadows.card,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: Colors.white,
+    ...Typography.button,
   },
   sponsorAd: {
-    marginTop: 24,
-    paddingTop: 20,
-    borderTopWidth: 2,
-    borderTopColor: '#5B8DAF',
+    marginTop: Spacing.lg,
+    paddingTop: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.primaryLight,
     alignItems: 'center',
   },
   sponsorAdText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#3A6478',
+    ...Typography.cardTitle,
+    fontSize: 17,
+    color: Colors.textPrimary,
     textAlign: 'center',
-    lineHeight: 26,
+    lineHeight: 24,
   },
   sponsorAdName: {
     fontWeight: '800',
-    color: '#FF8C6B',
+    color: Colors.coral,
   },
   sponsorAdLink: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#5B8DAF',
-    marginTop: 10,
+    ...Typography.cardTitle,
+    fontSize: 15,
+    color: Colors.chartBlue,
+    marginTop: Spacing.sm,
   },
-  // Quest Rules & Proof modal
   rulesModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
+    padding: Spacing.lg,
   },
   rulesModalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.xl,
+    padding: Spacing.lg,
     maxWidth: 400,
     width: '100%',
     maxHeight: '85%',
+    ...Shadows.cardElevated,
   },
   rulesModalTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    ...Typography.cardTitle,
+    fontSize: 20,
+    marginBottom: Spacing.sm,
     textAlign: 'center',
   },
   rulesModalSubtitle: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 20,
+    ...Typography.metadata,
+    marginBottom: Spacing.lg,
     textAlign: 'center',
   },
   rulesModalScroll: {
     maxHeight: 360,
-    marginBottom: 20,
+    marginBottom: Spacing.lg,
   },
   rulesModalSectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginTop: 16,
-    marginBottom: 8,
+    ...Typography.cardTitle,
+    fontSize: 15,
+    marginTop: Spacing.md,
+    marginBottom: Spacing.sm,
   },
   rulesModalBody: {
-    fontSize: 15,
-    color: '#333',
+    ...Typography.body,
+    color: Colors.textSecondary,
     lineHeight: 22,
-    marginBottom: 8,
+    marginBottom: Spacing.sm,
   },
   rulesModalBullet: {
-    fontSize: 15,
-    color: '#333',
+    ...Typography.body,
+    color: Colors.textSecondary,
     lineHeight: 22,
-    marginLeft: 8,
+    marginLeft: Spacing.sm,
     marginBottom: 4,
   },
   rulesModalButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    padding: 16,
+    backgroundColor: Colors.chartBlue,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
     alignItems: 'center',
+    ...Shadows.sm,
   },
   rulesModalButtonText: {
-    color: '#fff',
+    color: Colors.white,
+    ...Typography.button,
     fontSize: 15,
-    fontWeight: '600',
     textAlign: 'center',
   },
 });

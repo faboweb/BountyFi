@@ -86,7 +86,7 @@ export function LootboxScreen() {
           <Text style={styles.warning}>Need 1 ticket or 10 diamonds to open a box!</Text>
         )}
 
-        {lastRequestId && (
+        {lastRequestId ? (
           <View style={styles.resultCard}>
             <Text style={styles.resultTitle}>Last open</Text>
             <Text style={styles.resultRequestId}>Request #{lastRequestId}</Text>
@@ -107,30 +107,30 @@ export function LootboxScreen() {
               </View>
             )}
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  container: { flex: 1, backgroundColor: Colors.background },
   content: { padding: Spacing.xl, alignItems: 'center', paddingBottom: Spacing.xxl * 2 },
-  title: { ...Typography.heading, fontSize: 32, marginBottom: Spacing.sm },
-  subtitle: { ...Typography.body, textAlign: 'center', color: Colors.textGray, marginBottom: Spacing.xl },
-  balanceCard: { backgroundColor: '#fff', padding: Spacing.xl, borderRadius: BorderRadius.lg, ...Shadows.card, width: '100%', alignItems: 'center', marginBottom: Spacing.xxl },
-  balanceLabel: { ...Typography.caption, color: Colors.textGray, marginBottom: 4 },
-  balanceValue: { ...Typography.heading, fontSize: 28, color: Colors.primaryBright },
-  openButton: { backgroundColor: Colors.primaryBright, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.xxl, borderRadius: BorderRadius.full, width: '100%', alignItems: 'center', ...Shadows.sm },
-  disabledButton: { backgroundColor: '#CBD5E1' },
-  buttonText: { color: '#fff', fontWeight: '800', fontSize: 18 },
+  title: { ...Typography.cardTitle, fontSize: 28, marginBottom: Spacing.sm },
+  subtitle: { ...Typography.metadata, textAlign: 'center', color: Colors.textSecondary, marginBottom: Spacing.xl },
+  balanceCard: { backgroundColor: Colors.white, padding: Spacing.xl, borderRadius: BorderRadius.xl, ...Shadows.card, width: '100%', alignItems: 'center', marginBottom: Spacing.xxl },
+  balanceLabel: { ...Typography.metadata, color: Colors.textSecondary, marginBottom: 4 },
+  balanceValue: { ...Typography.cardTitle, fontSize: 28, color: Colors.chartBlue },
+  openButton: { backgroundColor: Colors.chartBlue, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.xxl, borderRadius: BorderRadius.xl, width: '100%', alignItems: 'center', ...Shadows.card },
+  disabledButton: { backgroundColor: Colors.primaryDark },
+  buttonText: { color: Colors.white, ...Typography.button, fontSize: 16 },
   warning: { marginTop: Spacing.lg, color: Colors.error, fontWeight: '600' },
-  resultCard: { backgroundColor: '#fff', padding: Spacing.xl, borderRadius: BorderRadius.lg, ...Shadows.card, width: '100%', marginTop: Spacing.xl, alignItems: 'center' },
+  resultCard: { backgroundColor: Colors.white, padding: Spacing.xl, borderRadius: BorderRadius.xl, ...Shadows.card, width: '100%', marginTop: Spacing.xl, alignItems: 'center' },
   resultTitle: { ...Typography.caption, color: Colors.textGray, marginBottom: 4 },
   resultRequestId: { ...Typography.body, marginBottom: Spacing.sm },
   resultText: { ...Typography.body, color: Colors.textGray },
   resultRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flexWrap: 'wrap', justifyContent: 'center' },
   prizeLabel: { ...Typography.heading, fontSize: 20, color: Colors.success },
-  checkButton: { backgroundColor: Colors.primaryBright, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg, borderRadius: BorderRadius.full },
-  checkButtonText: { color: '#fff', fontWeight: '600' },
+  checkButton: { backgroundColor: Colors.chartBlue, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg, borderRadius: BorderRadius.lg, ...Shadows.sm },
+  checkButtonText: { color: Colors.white, ...Typography.button, fontSize: 14 },
 });

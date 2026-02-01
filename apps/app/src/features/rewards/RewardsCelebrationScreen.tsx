@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: Spacing.md,
     borderBottomWidth: 2,
-    borderBottomColor: Colors.cream,
+    borderBottomColor: Colors.primaryLight,
   },
   breakdownLabel: {
     fontSize: 15,

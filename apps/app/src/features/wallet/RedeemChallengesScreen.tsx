@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     borderRadius: BorderRadius.full,
   },
-  ticketCount: { ...Typography.heading, fontSize: 18, color: Colors.ivoryBlueDark },
-  ticketLabel: { fontSize: 11, color: Colors.ivoryBlueDark, fontWeight: '600' },
+  ticketCount: { ...Typography.cardTitle, fontSize: 18, color: Colors.textPrimary },
+  ticketLabel: { ...Typography.metadata, color: Colors.textSecondary, fontWeight: '600' },
   tapHint: { fontSize: 12, color: Colors.textGray, marginTop: 8 },
 });

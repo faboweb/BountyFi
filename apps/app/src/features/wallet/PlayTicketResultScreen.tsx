@@ -51,7 +51,7 @@ export function PlayTicketResultScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#F8FAFC' },
+  safeArea: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -90,9 +90,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   prizeText: {
-    ...Typography.heading,
+    ...Typography.cardTitle,
     fontSize: 20,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
     marginBottom: Spacing.xl,
   },
   hint: {

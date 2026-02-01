@@ -137,7 +137,7 @@ export function TreasureWalletScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -311,7 +311,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 35,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.primaryLight,
     borderWidth: 3,
     justifyContent: 'center',
     alignItems: 'center',
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   leaderBar: {
     width: '80%',
     height: 60,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.primaryLight,
     borderTopLeftRadius: 12,
     borderTopRightRadius: 12,
   },

@@ -32,8 +32,19 @@ type QueueItem = (Submission & { is_audit?: boolean }) | { id: string; before_ph
 
 const AUDIT_PROBABILITY = 0.2; // ~20% of items can be random audits
 
+/** Demo: field with trash, same image left & right */
+const DEMO_FIELD_WITH_TRASH_IMAGE =
+  'https://images.unsplash.com/photo-1592890278983-18616401d4ed?w=800';
+
 function buildQueue(visibleSubmissions: Submission[]): QueueItem[] {
   const list: QueueItem[] = [];
+  // Prepend a demo audit (field with trash, same on both sides) so Verify always has at least one spot-check
+  list.push({
+    id: 'demo_audit_field_trash',
+    before_photo_url: DEMO_FIELD_WITH_TRASH_IMAGE,
+    after_photo_url: DEMO_FIELD_WITH_TRASH_IMAGE,
+    is_audit: true,
+  });
   visibleSubmissions.forEach((sub, i) => {
     list.push(sub);
     if (sub.before_photo_url && sub.after_photo_url && Math.random() < AUDIT_PROBABILITY) {
@@ -84,10 +95,10 @@ export function ValidateQueueScreen() {
   );
 
   useEffect(() => {
-    if (visibleSubmissions.length > 0 && queue.length === 0) {
+    if (queue.length === 0 && !isLoading) {
       setQueue(buildQueue(visibleSubmissions));
     }
-  }, [visibleSubmissions.length]);
+  }, [visibleSubmissions.length, isLoading, queue.length]);
 
   const currentItem = queue[currentIndex];
   const isAudit = currentItem?.is_audit === true;
@@ -214,9 +225,9 @@ export function ValidateQueueScreen() {
           const penalty = await api.users.recordAuditPenalty();
           const msg =
             penalty.trusted_network_lost_ticket
-              ? 'Third miss: your trusted network loses 1 ticket. Watch for spot checks — same photo twice means Reject.'
+              ? 'Third miss: your trusted network loses 1 ticket.'
               : penalty.diamonds_lost > 0
-                ? `Spot check. −${penalty.diamonds_lost} 💎 — reject when you see the same photo twice.`
+                ? `Wrong answer. −${penalty.diamonds_lost} 💎`
                 : '';
           if (msg) penaltyAlerts.push(msg);
         }
@@ -235,7 +246,7 @@ export function ValidateQueueScreen() {
       setQueue([]);
       setCurrentIndex(0);
       if (data?.penaltyAlerts?.length) {
-        Alert.alert('Spot check', data.penaltyAlerts.join('\n\n'), [{ text: 'OK' }]);
+        Alert.alert('Result', data.penaltyAlerts.join('\n\n'), [{ text: 'OK' }]);
       }
       setShowTxSuccessModal(true);
       queryClient.invalidateQueries({ queryKey: ['submissions'] });
@@ -389,11 +400,11 @@ export function ValidateQueueScreen() {
           <View style={styles.juryCard}>
             <View style={styles.juryBadge}>
               <Text style={styles.juryBadgeText}>
-                {isAudit ? 'Spot check' : 'Review'} #{juryTaskNum}
+                Review #{juryTaskNum}
               </Text>
             </View>
             <Text style={styles.juryTitle}>
-              {isAudit ? 'Same photo twice — reject' : 'Before & after'}
+              Before & after
             </Text>
 
             <View style={styles.twoPhotosRow}>
@@ -430,10 +441,8 @@ export function ValidateQueueScreen() {
             </View>
 
             <Text style={styles.juryQuestion}>
-            {isAudit
-              ? 'This is a spot check. The same photo is used for both — tap Reject.'
-              : 'Does this before & after look valid and follow the mission rules?'}
-          </Text>
+              Does this before & after look valid and follow the mission rules?
+            </Text>
 
           {!isOwnSubmission ? (
             <View style={styles.voteButtons}>
@@ -485,13 +494,13 @@ export function ValidateQueueScreen() {
               <Text style={styles.juryStatLabel}>Diamonds</Text>
             </View>
             <View style={styles.juryStatItem}>
-              <Text style={[styles.juryStatValue, { color: Colors.ivoryBlueDark }]}>
+              <Text style={[styles.juryStatValue, { color: Colors.textPrimary }]}>
                 {userData?.validations_completed ?? user?.validations_completed ?? 0}
               </Text>
               <Text style={styles.juryStatLabel}>Reviewed</Text>
             </View>
             <View style={styles.juryStatItem}>
-              <Text style={[styles.juryStatValue, { color: Colors.ivoryBlueDark }]}>
+              <Text style={[styles.juryStatValue, { color: Colors.textPrimary }]}>
                 {auditFailCount}/3
               </Text>
               <Text style={styles.juryStatLabel}>Wrong</Text>
@@ -660,7 +669,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.creamDark,
+    borderColor: Colors.backgroundDark,
     ...Shadows.sm,
   },
   questRulesTitle: {
@@ -704,7 +713,7 @@ const styles = StyleSheet.create({
   halfPhoto: {
     flex: 1,
     aspectRatio: 1,
-    backgroundColor: Colors.creamDark,
+    backgroundColor: Colors.backgroundDark,
     borderRadius: 16,
     overflow: 'hidden',
   },
@@ -721,7 +730,7 @@ const styles = StyleSheet.create({
   submissionPreview: {
     width: '100%',
     height: 200,
-    backgroundColor: Colors.creamDark,
+    backgroundColor: Colors.backgroundDark,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.lg,
     borderWidth: 3,
@@ -734,12 +743,12 @@ const styles = StyleSheet.create({
   submissionImage: {
     width: '100%',
     flex: 1,
-    backgroundColor: Colors.creamDark,
+    backgroundColor: Colors.backgroundDark,
   },
   submissionImagePlaceholder: {
     width: '100%',
     flex: 1,
-    backgroundColor: Colors.creamDark,
+    backgroundColor: Colors.backgroundDark,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -836,7 +845,7 @@ const styles = StyleSheet.create({
     padding: Spacing.lg,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.creamDark,
+    borderColor: Colors.backgroundDark,
     marginTop: Spacing.md,
     ...Shadows.sm,
   },
@@ -880,13 +889,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
-    borderTopColor: Colors.creamDark,
+    borderTopColor: Colors.backgroundDark,
   },
   emptyIconContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: Colors.cream,
+    backgroundColor: Colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
@@ -895,7 +904,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
     fontSize: 22,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   emptySubtext: {
@@ -910,7 +919,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
     backgroundColor: Colors.white,
     borderWidth: 1,
-    borderColor: Colors.creamDark,
+    borderColor: Colors.backgroundDark,
   },
   refreshButtonText: {
     fontWeight: '700',
@@ -972,7 +981,7 @@ const styles = StyleSheet.create({
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
     fontSize: 20,
-    color: Colors.ivoryBlueDark,
+    color: Colors.textPrimary,
     marginBottom: Spacing.sm,
   },
   modalBody: {
