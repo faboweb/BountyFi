@@ -10,6 +10,7 @@ import {
   Alert,
   Animated,
   SafeAreaView,
+  Modal,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../../api/client';
@@ -17,6 +18,14 @@ import { useAuth } from '../../auth/context';
 import { mockWebSocket } from '../../api/mock';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Submission } from '../../api/types';
+import { Button } from '../../components/Button';
+
+/** Pending vote in bucket (not yet saved) */
+type PendingVote = {
+  submission_id?: string;
+  vote: 'approve' | 'reject';
+  is_audit: boolean;
+};
 
 /** Queue item: real submission or synthetic audit (same image as before & after; correct vote = reject) */
 type QueueItem = (Submission & { is_audit?: boolean }) | { id: string; before_photo_url: string; after_photo_url: string; is_audit: true };
@@ -45,7 +54,13 @@ export function ValidateQueueScreen() {
   const { user, refreshUser } = useAuth();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [pendingVotes, setPendingVotes] = useState<PendingVote[]>([]);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  // Transaction modal flow
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showTxPendingModal, setShowTxPendingModal] = useState(false);
+  const [showTxSuccessModal, setShowTxSuccessModal] = useState(false);
   const queueRef = useRef<QueueItem[]>([]);
   const indexRef = useRef(0);
   const mountedRef = useRef(true);
@@ -164,39 +179,88 @@ export function ValidateQueueScreen() {
     });
   };
 
-  const voteMutation = useMutation({
-    mutationFn: async (vote: 'approve' | 'reject'): Promise<{ penalty?: { diamonds_lost: number; trusted_network_lost_ticket: boolean } }> => {
-      if (isAudit) {
-        if (vote === 'reject') {
-          await api.users.addDiamonds(1);
-          return {};
+  /** Add vote to bucket and advance to next (no API call yet) */
+  const handleVote = (vote: 'approve' | 'reject') => {
+    const newVote: PendingVote = {
+      submission_id: currentSubmission?.id,
+      vote,
+      is_audit: isAudit ?? false,
+    };
+    setPendingVotes((prev) => [...prev, newVote]);
+    advanceToNext();
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      const regular = pendingVotes.filter((v) => !v.is_audit && v.submission_id);
+      const audits = pendingVotes.filter((v) => v.is_audit);
+
+      let diamondsToAdd = 0;
+      const penaltyAlerts: string[] = [];
+
+      // 1. Batch submit regular votes
+      if (regular.length > 0) {
+        const { successCount } = await api.validations.submitBatch(
+          regular.map((v) => ({ submission_id: v.submission_id!, vote: v.vote }))
+        );
+        diamondsToAdd += successCount;
+      }
+
+      // 2. Process audits one by one (penalty may be cumulative)
+      for (const a of audits) {
+        if (a.vote === 'reject') {
+          diamondsToAdd += 1; // Correct audit = +1 diamond
+        } else {
+          const penalty = await api.users.recordAuditPenalty();
+          const msg =
+            penalty.trusted_network_lost_ticket
+              ? 'Third miss: your trusted network loses 1 ticket. Watch for spot checks — same photo twice means Reject.'
+              : penalty.diamonds_lost > 0
+                ? `Spot check. −${penalty.diamonds_lost} 💎 — reject when you see the same photo twice.`
+                : '';
+          if (msg) penaltyAlerts.push(msg);
         }
-        const penalty = await api.users.recordAuditPenalty();
-        return { penalty };
       }
-      if (!currentSubmission) throw new Error('No submission selected');
-      await api.validations.submit({ submission_id: currentSubmission.id, vote });
-      await api.users.addDiamonds(1);
-      return {};
-    },
-    onSuccess: (data: any) => {
-      if (data?.penalty) {
-        const { diamonds_lost, trusted_network_lost_ticket } = data.penalty;
-        const msg =
-          trusted_network_lost_ticket
-            ? 'Third miss: your trusted network loses 1 ticket. Watch for spot checks — same photo twice means Reject.'
-            : diamonds_lost > 0
-              ? `That was a spot check. −${diamonds_lost} 💎 — reject when you see the same photo twice.`
-              : '';
-        if (msg) Alert.alert('Spot check', msg, [{ text: 'OK' }]);
+
+      // 3. Add diamonds once for all (regular success + audit correct)
+      if (diamondsToAdd > 0) {
+        await api.users.addDiamonds(diamondsToAdd);
       }
-      // Defer so state updates happen after mutation completes (avoids crash when moving to next)
-      setTimeout(() => advanceToNext(), 0);
+
+      return { penaltyAlerts };
     },
-    onError: (error: any) => Alert.alert('Error', error.message || 'Failed to submit vote'),
+    onSuccess: (data: { penaltyAlerts: string[] }) => {
+      setShowTxPendingModal(false);
+      setPendingVotes([]);
+      if (data?.penaltyAlerts?.length) {
+        Alert.alert('Spot check', data.penaltyAlerts.join('\n\n'), [{ text: 'OK' }]);
+      }
+      setShowTxSuccessModal(true);
+      queryClient.invalidateQueries({ queryKey: ['submissions'] });
+      queryClient.invalidateQueries({ queryKey: ['user', 'me'] });
+      if (refreshUser) refreshUser();
+      if (user?.id) refetchUser();
+    },
+    onError: (error: any) => {
+      setShowTxPendingModal(false);
+      Alert.alert('Error', error.message || 'Failed to save votes');
+    },
   });
 
-  const handleVote = (vote: 'approve' | 'reject') => voteMutation.mutate(vote);
+  const handleSavePress = () => {
+    if (pendingVotes.length === 0) return;
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmSave = () => {
+    setShowConfirmModal(false);
+    setShowTxPendingModal(true);
+    saveMutation.mutate();
+  };
+
+  const handleTxSuccessDone = () => {
+    setShowTxSuccessModal(false);
+  };
   const handleUnclear = () => {
     animateTransition(() => {
       if (currentIndex < queue.length - 1) {
@@ -235,14 +299,50 @@ export function ValidateQueueScreen() {
             There are no submissions to review right now. Check back later — your help keeps the community honest.
           </Text>
         </View>
+        {pendingVotes.length > 0 && (
+          <View style={styles.unsavedBanner}>
+            <View style={styles.unsavedContent}>
+              <Text style={styles.unsavedBadge}>⚠</Text>
+              <Text style={styles.unsavedText}>
+                {pendingVotes.length} vote{pendingVotes.length !== 1 ? 's' : ''} not saved
+              </Text>
+            </View>
+            <Button
+              title="Save votes"
+              variant="primary"
+              onPress={handleSavePress}
+              loading={saveMutation.isPending}
+              style={styles.saveButton}
+            />
+          </View>
+        )}
       </SafeAreaView>
     );
   }
 
   if (!hasQueue || !currentItem) {
     return (
-      <SafeAreaView style={[styles.safeArea, styles.center]}>
-        <ActivityIndicator size="large" color={Colors.ivoryBlue} />
+      <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.center, { flex: 1 }]}>
+          <ActivityIndicator size="large" color={Colors.ivoryBlue} />
+        </View>
+        {pendingVotes.length > 0 && (
+          <View style={styles.unsavedBanner}>
+            <View style={styles.unsavedContent}>
+              <Text style={styles.unsavedBadge}>⚠</Text>
+              <Text style={styles.unsavedText}>
+                {pendingVotes.length} vote{pendingVotes.length !== 1 ? 's' : ''} not saved
+              </Text>
+            </View>
+            <Button
+              title="Save votes"
+              variant="primary"
+              onPress={handleSavePress}
+              loading={saveMutation.isPending}
+              style={styles.saveButton}
+            />
+          </View>
+        )}
       </SafeAreaView>
     );
   }
@@ -338,7 +438,6 @@ export function ValidateQueueScreen() {
               <TouchableOpacity
                 style={[styles.voteBtn, styles.voteReject]}
                 onPress={() => handleVote('reject')}
-                disabled={voteMutation.isPending}
               >
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.accentNo }]} />
                 <View style={styles.voteBtnContent}>
@@ -348,7 +447,6 @@ export function ValidateQueueScreen() {
               <TouchableOpacity
                 style={[styles.voteBtn, styles.voteApprove]}
                 onPress={() => handleVote('approve')}
-                disabled={voteMutation.isPending}
               >
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.accentYes }]} />
                 <View style={styles.voteBtnContent}>
@@ -403,6 +501,86 @@ export function ValidateQueueScreen() {
         </View>
       </Animated.View>
     </ScrollView>
+
+      {/* Big red unsaved indicator + Save button */}
+      {pendingVotes.length > 0 && (
+        <View style={styles.unsavedBanner}>
+          <View style={styles.unsavedContent}>
+            <Text style={styles.unsavedBadge}>⚠</Text>
+            <Text style={styles.unsavedText}>
+              {pendingVotes.length} vote{pendingVotes.length !== 1 ? 's' : ''} not saved
+            </Text>
+          </View>
+          <Button
+            title="Save votes"
+            variant="primary"
+            onPress={handleSavePress}
+            loading={saveMutation.isPending}
+            style={styles.saveButton}
+          />
+        </View>
+      )}
+
+      {/* Confirm Save Modal */}
+      <Modal
+        visible={showConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowConfirmModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Confirm transaction</Text>
+            <Text style={styles.modalBody}>
+              Submit {pendingVotes.length} vote{pendingVotes.length !== 1 ? 's' : ''} to the blockchain. This will save all your validations.
+            </Text>
+            <View style={styles.modalActions}>
+              <Button
+                title="Cancel"
+                variant="secondary"
+                onPress={() => setShowConfirmModal(false)}
+                style={styles.modalBtn}
+              />
+              <Button
+                title="Save votes"
+                variant="primary"
+                onPress={handleConfirmSave}
+                style={styles.modalBtn}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Transaction Pending Modal */}
+      <Modal visible={showTxPendingModal} transparent animationType="fade" onRequestClose={() => {}}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <ActivityIndicator size="large" color={Colors.ivoryBlue} style={styles.txSpinner} />
+            <Text style={styles.modalTitle}>Transaction pending</Text>
+            <Text style={styles.txPendingText}>
+              Saving your votes. This may take a moment...
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Transaction Success Modal */}
+      <Modal
+        visible={showTxSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleTxSuccessDone}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.txSuccessEmoji}>✓</Text>
+            <Text style={styles.modalTitle}>Votes saved</Text>
+            <Text style={styles.txSuccessText}>Your validations have been submitted.</Text>
+            <Button title="Done" variant="primary" onPress={handleTxSuccessDone} style={styles.modalDoneBtn} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -736,4 +914,93 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.ivoryBlue,
   },
+  // Unsaved votes banner
+  unsavedBanner: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#B91C1C',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    paddingBottom: Spacing.lg + 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.md,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    ...Shadows.card,
+  },
+  unsavedContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
+  },
+  unsavedBadge: {
+    fontSize: 24,
+  },
+  unsavedText: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 16,
+    color: Colors.white,
+  },
+  saveButton: {
+    minWidth: 140,
+  },
+  // Transaction modals
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  modalContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    width: '100%',
+    maxWidth: 360,
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  modalTitle: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 20,
+    color: Colors.ivoryBlueDark,
+    marginBottom: Spacing.sm,
+  },
+  modalBody: {
+    fontSize: 15,
+    color: Colors.textGray,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+    lineHeight: 22,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    width: '100%',
+  },
+  modalBtn: { flex: 1 },
+  txSpinner: { marginBottom: Spacing.md },
+  txPendingText: {
+    fontSize: 15,
+    color: Colors.textGray,
+    textAlign: 'center',
+  },
+  txSuccessEmoji: {
+    fontSize: 48,
+    marginBottom: Spacing.sm,
+  },
+  txSuccessText: {
+    fontSize: 15,
+    color: Colors.textGray,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+  },
+  modalDoneBtn: { minWidth: 160 },
 });

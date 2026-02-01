@@ -2,7 +2,11 @@
 export const API_CONFIG = {
   // Supabase API (for later connection)
   SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://cguqjaoeleifeaxktmwv.supabase.co',
-  SUPABASE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '',
+  // Anon key from Supabase Dashboard → Project Settings → API (anon public). Required for Edge Functions.
+  SUPABASE_PUBLISHABLE_KEY:
+    process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
+    (typeof process !== 'undefined' && process.env?.SUPABASE_ANON_KEY) ||
+    '',
 
   // Mock mode toggle (default: false - do not show mock data unless explicitly enabled)
   // Set EXPO_PUBLIC_USE_MOCK_API=true in .env to enable mock data

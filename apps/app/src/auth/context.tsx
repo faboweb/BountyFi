@@ -35,6 +35,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function mapDbUserToAppUser(profile: User & { wallet_address?: string }): User {
+  return {
+    ...profile,
+    id: profile.wallet_address ?? profile.id,
+    tickets: profile.tickets ?? 0,
+    referral_code: profile.referral_code ?? '',
+    validations_completed: profile.validations_completed ?? 0,
+    accuracy_rate: profile.accuracy_rate ?? 0,
+    diamonds: profile.diamonds ?? 0,
+    audit_fail_count: profile.audit_fail_count ?? 0,
+    trusted_network_ids: profile.trusted_network_ids ?? [],
+  };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,6 +127,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           trusted_network_ids: [],
         });
         console.log('[AuthContext] Persisted CDP session to storage:', walletAddress);
+
+        if (cancelled) return;
+        try {
+          const profile = await api.users.getMe();
+          if (!cancelled && profile) setUser(mapDbUserToAppUser(profile));
+        } catch (e) {
+          if (!cancelled) console.warn('[AuthContext] Hydrate profile (getMe) failed:', e);
+        }
       } catch (e) {
         if (!cancelled) console.warn('[AuthContext] Sync CDP to storage failed:', e);
       }
@@ -172,6 +194,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
 
         setUser(userData);
+        try {
+          const profile = await api.users.getMe();
+          if (profile) setUser(mapDbUserToAppUser(profile));
+        } catch (_) {
+          // getMe() ensures user exists; if it still fails, keep stub user
+        }
         // Don't set isLoading false here – wait for token refresh (CDP rehydration) so we don't hit 401 with expired token
       } else if (API_CONFIG.USE_MOCK_API) {
         // Testing only: skip login, use stub user so we can test the app without signing in
@@ -378,6 +406,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       setUser(userData);
+      try {
+        const profile = await api.users.getMe();
+        if (profile) setUser(mapDbUserToAppUser(profile));
+      } catch (_) {
+        // getMe() ensures user exists; keep stub user if API fails
+      }
       console.log('[AuthContext] Login successful for wallet:', walletAddress);
 
       return {

@@ -238,6 +238,21 @@ export const mockValidationsApi = {
       }
     }, 500);
   },
+
+  async submitBatch(requests: ValidationRequest[]): Promise<{ successCount: number; failCount: number; results: any[] }> {
+    let successCount = 0;
+    const results: any[] = [];
+    for (const r of requests) {
+      try {
+        await this.submit(r);
+        successCount++;
+        results.push({ submission_id: r.submission_id, success: true });
+      } catch (err: any) {
+        results.push({ submission_id: r.submission_id, success: false, error: err.message });
+      }
+    }
+    return { successCount, failCount: requests.length - successCount, results };
+  },
 };
 
 // Discoverable users for search / "contacts on BountyFi" (mock)

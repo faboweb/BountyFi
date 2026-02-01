@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -56,8 +57,13 @@ export function DonateToQuestScreen() {
   const [goodsCustomText, setGoodsCustomText] = React.useState('');
   const [goodsPhotoUri, setGoodsPhotoUri] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState('');
-  const [donated, setDonated] = React.useState(false);
   const [photoModal, setPhotoModal] = React.useState<'brand' | 'goods' | null>(null);
+
+  // Transaction modal flow
+  const [showConfirmModal, setShowConfirmModal] = React.useState(false);
+  const [showTxPendingModal, setShowTxPendingModal] = React.useState(false);
+  const [showTxSuccessModal, setShowTxSuccessModal] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
 
   const { data: campaign } = useQuery({
     queryKey: ['campaign', campaignId],
@@ -114,27 +120,30 @@ export function DonateToQuestScreen() {
       Alert.alert('Details', 'Describe what you\'re offering (e.g. 10 coffees, 2 night stay).');
       return;
     }
-    setDonated(true);
+    setShowConfirmModal(true);
   };
 
-  const handleDone = () => {
+  const handleConfirmDonate = async () => {
+    setShowConfirmModal(false);
+    setIsSubmitting(true);
+    setShowTxPendingModal(true);
+    try {
+      // TODO: Add API/blockchain call when donation backend is ready
+      await new Promise((r) => setTimeout(r, 1500));
+      setShowTxPendingModal(false);
+      setShowTxSuccessModal(true);
+    } catch (err: any) {
+      setShowTxPendingModal(false);
+      Alert.alert('Error', err.message || 'Failed to submit donation. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTransactionDone = () => {
+    setShowTxSuccessModal(false);
     navigation.navigate('DonateHome');
   };
-
-  if (donated) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.thankYouContainer}>
-          <Image source={require('../../../assets/jellyfish.png')} style={styles.octopusImage} resizeMode="contain" />
-          <Text style={styles.thankYouTitle}>Thank you for making an impact</Text>
-          <Text style={styles.thankYouSub}>
-            Your donation helps this quest succeed.
-          </Text>
-          <Button title="Done" onPress={handleDone} variant="primary" style={styles.doneBtn} />
-        </View>
-      </SafeAreaView>
-    );
-  }
 
   if (!campaign) {
     return (
@@ -354,6 +363,123 @@ export function DonateToQuestScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Confirm Transaction Modal */}
+      <Modal
+        visible={showConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !isSubmitting && setShowConfirmModal(false)}
+      >
+        <View style={styles.txModalOverlay}>
+          <View style={styles.txModalContainer}>
+            <View style={styles.txModalHeader}>
+              <Text style={styles.txModalTitle}>Confirm donation</Text>
+              <TouchableOpacity
+                onPress={() => setShowConfirmModal(false)}
+                style={styles.txModalClose}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.txModalCloseText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.txModalContent}>
+              <View style={styles.txModalRow}>
+                <Text style={styles.txModalLabel}>Quest:</Text>
+                <Text style={styles.txModalValue}>{campaign?.title}</Text>
+              </View>
+              <View style={styles.txModalRow}>
+                <Text style={styles.txModalLabel}>Company:</Text>
+                <Text style={styles.txModalValue}>{companyName}</Text>
+              </View>
+              <View style={styles.txModalRow}>
+                <Text style={styles.txModalLabel}>Type:</Text>
+                <Text style={styles.txModalValue}>
+                  {DONATION_TYPES.find((t) => t.id === donationType)?.label ?? donationType}
+                </Text>
+              </View>
+              {isMoney && (
+                <View style={styles.txModalRow}>
+                  <Text style={styles.txModalLabel}>Amount:</Text>
+                  <Text style={styles.txModalValue}>{amount} THB</Text>
+                </View>
+              )}
+              {!isMoney && details && (
+                <View style={styles.txModalRow}>
+                  <Text style={styles.txModalLabel}>Details:</Text>
+                  <Text style={styles.txModalValue} numberOfLines={2}>{details}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.txModalActions}>
+              <Button
+                title="Cancel"
+                variant="secondary"
+                onPress={() => setShowConfirmModal(false)}
+                style={styles.txModalBtn}
+                disabled={isSubmitting}
+              />
+              <Button
+                title="Confirm & donate"
+                variant="primary"
+                onPress={handleConfirmDonate}
+                style={styles.txModalBtn}
+                disabled={isSubmitting}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Transaction Pending Modal */}
+      <Modal
+        visible={showTxPendingModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.txModalOverlay}>
+          <View style={styles.txModalContainer}>
+            <View style={styles.txModalContent}>
+              <ActivityIndicator size="large" color={Colors.ivoryBlue} style={styles.txPendingSpinner} />
+              <Text style={styles.txModalTitle}>Transaction pending</Text>
+              <Text style={styles.txPendingText}>
+                Your donation is being submitted. This may take a moment...
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Transaction Success Modal */}
+      <Modal
+        visible={showTxSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={handleTransactionDone}
+      >
+        <View style={styles.txModalOverlay}>
+          <View style={styles.txModalContainer}>
+            <View style={styles.txSuccessContent}>
+              <Image
+                source={require('../../../assets/jellyfish.png')}
+                style={styles.txSuccessImage}
+                resizeMode="contain"
+              />
+              <Text style={styles.txSuccessTitle}>Thank you for making an impact</Text>
+              <Text style={styles.txSuccessSub}>
+                Your donation helps this quest succeed.
+              </Text>
+              <Button
+                title="Done"
+                onPress={handleTransactionDone}
+                variant="primary"
+                style={styles.txSuccessBtn}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -504,27 +630,85 @@ const styles = StyleSheet.create({
   modalClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   modalCloseText: { fontSize: 20, color: Colors.ivoryBlueDark },
   cameraWrap: { flex: 1, minHeight: 400 },
-  thankYouContainer: {
+  // Transaction modals
+  txModalOverlay: {
     flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: Spacing.xl,
+    padding: Spacing.lg,
   },
-  octopusImage: { width: 280, height: 280, marginBottom: Spacing.xl },
-  thankYouTitle: {
+  txModalContainer: {
+    backgroundColor: Colors.white,
+    borderRadius: BorderRadius.lg,
+    width: '100%',
+    maxWidth: 400,
+    overflow: 'hidden',
+  },
+  txModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: Spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.creamDark,
+  },
+  txModalTitle: {
     fontFamily: Typography.heading.fontFamily,
     fontWeight: '700',
-    fontSize: 24,
+    fontSize: 18,
+    color: Colors.ivoryBlueDark,
+  },
+  txModalClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
+  txModalCloseText: { fontSize: 20, color: Colors.ivoryBlueDark },
+  txModalContent: {
+    padding: Spacing.lg,
+  },
+  txModalRow: { marginBottom: Spacing.md },
+  txModalLabel: {
+    fontSize: 12,
+    color: Colors.textGray,
+    marginBottom: Spacing.xs,
+  },
+  txModalValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.ivoryBlueDark,
+  },
+  txModalActions: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+    padding: Spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: Colors.creamDark,
+  },
+  txModalBtn: { flex: 1 },
+  txPendingSpinner: { marginBottom: Spacing.md, alignSelf: 'center' },
+  txPendingText: {
+    fontSize: 15,
+    color: Colors.textGray,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
+  txSuccessContent: {
+    padding: Spacing.xl,
+    alignItems: 'center',
+  },
+  txSuccessImage: { width: 140, height: 140, marginBottom: Spacing.lg },
+  txSuccessTitle: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 20,
     color: Colors.ivoryBlueDark,
     textAlign: 'center',
     marginBottom: Spacing.sm,
   },
-  thankYouSub: {
-    fontSize: 16,
+  txSuccessSub: {
+    fontSize: 15,
     color: Colors.textGray,
     textAlign: 'center',
     marginBottom: Spacing.xl,
-    lineHeight: 24,
+    lineHeight: 22,
   },
-  doneBtn: { minWidth: 200 },
+  txSuccessBtn: { minWidth: 200 },
 });

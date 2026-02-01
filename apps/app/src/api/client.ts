@@ -48,11 +48,12 @@ const createApiClient = (): AxiosInstance => {
     return config;
   });
 
-  // Handle 401 errors (token expired / invalid)
+  // Handle 401 errors (token expired / invalid).
+  // Requests with skipAuthRedirect (e.g. referrals) must not clear session so Profile doesn't loop to root.
   client.interceptors.response.use(
     (response) => response,
     async (error) => {
-      if (error.response?.status === 401) {
+      if (error.response?.status === 401 && !(error.config as any)?.skipAuthRedirect) {
         await authStorage.clear();
         notifyUnauthorized(); // Auth context sets user null so login screen shows
       }
@@ -65,12 +66,23 @@ const createApiClient = (): AxiosInstance => {
 
 const apiClient = createApiClient();
 
+/** Headers for Edge Function calls so 401 is avoided when no Supabase Auth session exists */
+function edgeFunctionHeaders(): Record<string, string> {
+  const key = API_CONFIG.SUPABASE_PUBLISHABLE_KEY;
+  if (!key) return {};
+  return {
+    Authorization: `Bearer ${key}`,
+    apikey: key,
+  };
+}
+
 // Auth API – Coinbase only (no email)
 export const authApi = {
   async loginWithCoinbase(request: CoinbaseLoginRequest): Promise<AuthResponse> {
     // Call Supabase Edge Function
     const { data, error } = await supabase.functions.invoke('verify_coinbase_token', {
-      body: { access_token: request.coinbase_access_token }
+      body: { access_token: request.coinbase_access_token },
+      headers: edgeFunctionHeaders(),
     });
 
     if (error) throw new Error(error.message || 'Coinbase verification failed');
@@ -139,7 +151,10 @@ export const campaignsApi = {
       onchain_id: request.onchain_id,
     };
 
-    const { data, error } = await supabase.functions.invoke('manage_campaign', { body });
+    const { data, error } = await supabase.functions.invoke('manage_campaign', {
+      body,
+      headers: edgeFunctionHeaders(),
+    });
 
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
@@ -162,7 +177,10 @@ export const submissionsApi = {
     if (request.eip712_message) {
       body.eip712_message = request.eip712_message;
     }
-    const { data: result, error } = await supabase.functions.invoke('relay_submission', { body });
+    const { data: result, error } = await supabase.functions.invoke('relay_submission', {
+      body,
+      headers: edgeFunctionHeaders(),
+    });
 
     if (error) throw error;
 
@@ -180,7 +198,8 @@ export const submissionsApi = {
     }
 
     const { data: pending, error } = await supabase.functions.invoke('get_tasks', {
-      body: { validator_address: savedUser?.wallet_address }
+      body: { validator_address: savedUser?.wallet_address },
+      headers: edgeFunctionHeaders(),
     });
 
     if (error) {
@@ -228,15 +247,49 @@ export const validationsApi = {
         submission_id: request.submission_id,
         validator_address: savedUser?.wallet_address,
         decision: request.vote === 'approve' ? 'APPROVED' : 'REJECTED',
-        reason: 'Manually validated via app'
-      }
+        reason: 'Manually validated via app',
+      },
+      headers: edgeFunctionHeaders(),
     });
     if (error) throw error;
+  },
+
+  /** Submit multiple votes in a single batch transaction */
+  async submitBatch(requests: ValidationRequest[]): Promise<{ successCount: number; failCount: number; results: any[] }> {
+    const savedUser = await authStorage.getUser();
+    if (!savedUser?.wallet_address) throw new Error('Not authenticated');
+
+    const votes = requests.map((r) => ({
+      submission_id: r.submission_id,
+      decision: r.vote === 'approve' ? 'APPROVED' : 'REJECTED' as const,
+    }));
+
+    const { data, error } = await supabase.functions.invoke('process_votes_batch', {
+      headers: edgeFunctionHeaders(),
+      body: { votes, validator_address: savedUser.wallet_address },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return {
+      successCount: data?.successCount ?? 0,
+      failCount: data?.failCount ?? 0,
+      results: data?.results ?? [],
+    };
   },
 };
 
 // Users API
 export const usersApi = {
+  async ensureUser(wallet_address: string, email?: string): Promise<User> {
+    const { data, error } = await supabase.functions.invoke('ensure_user', {
+      body: { wallet_address, email: email ?? '' },
+      headers: edgeFunctionHeaders(),
+    });
+    if (error) throw error;
+    if (!data?.user) throw new Error(data?.error ?? 'Failed to ensure user');
+    return data.user as User;
+  },
+
   async getMe(): Promise<User> {
     const savedUser = await authStorage.getUser();
     if (!savedUser?.wallet_address) throw new Error('Not authenticated');
@@ -245,9 +298,20 @@ export const usersApi = {
       .from('users')
       .select('*')
       .eq('wallet_address', savedUser.wallet_address)
-      .single();
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) {
+      await this.ensureUser(savedUser.wallet_address, savedUser.email);
+      const { data: after, error: err2 } = await supabase
+        .from('users')
+        .select('*')
+        .eq('wallet_address', savedUser.wallet_address)
+        .maybeSingle();
+      if (err2) throw err2;
+      if (!after) throw new Error('User profile not found');
+      return after as User;
+    }
     return data as User;
   },
 
@@ -320,7 +384,8 @@ export const lotteryApi = {
   /** Legacy: relay path (deducts tickets/diamonds in DB, relayer calls contract). Prefer openOnChain when user has wallet. */
   async open(signature: string, message: string): Promise<{ success: boolean; message: string; requestId?: string }> {
     const { data, error } = await supabase.functions.invoke('relay_lootbox', {
-      body: { signature, message }
+      body: { signature, message },
+      headers: edgeFunctionHeaders(),
     });
     if (error) throw error;
     return data;
@@ -346,7 +411,10 @@ export const lotteryApi = {
       body.signature = opts.signature;
       body.message = opts.message;
     }
-    const { data, error } = await supabase.functions.invoke('campaign_lootbox_pull', { body });
+    const { data, error } = await supabase.functions.invoke('campaign_lootbox_pull', {
+      body,
+      headers: edgeFunctionHeaders(),
+    });
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
     return data as CampaignLootboxPullResult;
@@ -367,6 +435,7 @@ export const lotteryApi = {
   async syncResult(requestId: string): Promise<void> {
     const { error } = await supabase.functions.invoke('indexer', {
       body: { event: 'sync_lootbox_result', requestId },
+      headers: edgeFunctionHeaders(),
     });
     if (error) throw error;
   },
@@ -380,7 +449,9 @@ export const referralsApi = {
   },
 
   async getMyCode(): Promise<ReferralCode> {
-    const response = await apiClient.get<ReferralCode>('/referrals/my-code');
+    const response = await apiClient.get<ReferralCode>('/referrals/my-code', {
+      skipAuthRedirect: true, // avoid 401 from this endpoint logging user out and looping Profile → root
+    } as any);
     return response.data;
   },
 };

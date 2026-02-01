@@ -7,60 +7,35 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-    console.log(`get_tasks function called: ${req.method}`)
-
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')
-    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-        console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables")
-        return new Response(
-            JSON.stringify({ error: "Server configuration error" }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        )
-    }
-
-    const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey)
+    const supabaseClient = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    )
 
     try {
-        let validator_address;
-        try {
-            const body = await req.json()
-            validator_address = body.validator_address
-        } catch (e: any) {
-            console.error("Failed to parse request body:", e.message)
-            throw new Error("Invalid request body")
-        }
-
-        console.log(`Fetching tasks for validator: ${validator_address}`)
+        const body = await req.json()
+        const validator_address = body?.validator_address ?? body?.validator_id
 
         if (!validator_address) {
-            throw new Error("Missing validator_address")
+            throw new Error("Missing validator_address or validator_id")
         }
 
-        // Use the RPC method to call our SQL function
         const { data, error } = await supabaseClient.rpc('get_validator_tasks_by_wallet', {
-            v_wallet: validator_address
+            v_wallet: typeof validator_address === 'string' ? validator_address : String(validator_address)
         })
 
-        if (error) {
-            console.error("RPC error:", error.message)
-            throw error
-        }
-
-        console.log(`Successfully fetched ${data?.length || 0} tasks`)
+        if (error) throw error
 
         return new Response(
             JSON.stringify(data),
             { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         )
 
-    } catch (error: any) {
-        console.error("get_tasks function error:", error.message)
+    } catch (error) {
         return new Response(
             JSON.stringify({ error: error.message }),
             { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
