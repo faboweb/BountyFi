@@ -18,11 +18,21 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp as RNRouteProp } from '@react-navigation/native';
 import { AppStackParamList } from '../../navigation/AppNavigator';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSignEvmTypedData, useEvmAddress } from '@coinbase/cdp-hooks';
 import { api } from '../../api/client';
+import { useAuth } from '../../auth/context';
 import { CameraCapture } from '../../components/CameraCapture';
 import { PhotoPreview } from '../../components/PhotoPreview';
 import { compressImage } from '../../utils/image';
+import { uploadSubmissionPhotos } from '../../utils/uploadSubmissionPhotos';
+import {
+  computeSubmissionHash,
+  buildSubmissionMessage,
+  EIP712_DOMAIN,
+  EIP712_TYPES,
+} from '../../utils/eip712Submission';
 import { calculateDistance, isWithinCheckpoint, getTimeDifferenceMinutes } from '../../utils/geo';
+import { API_CONFIG } from '../../config/api';
 import { Campaign, Checkpoint, QuestType } from '../../api/types';
 import * as Location from 'expo-location';
 
@@ -50,6 +60,10 @@ export function SubmitProofScreen() {
   const queryClient = useQueryClient();
   const campaignId = route.params?.campaignId;
   const checkpointId = route.params?.checkpointId;
+
+  const { signEvmTypedData } = useSignEvmTypedData();
+  const evmAddress = useEvmAddress();
+  const { user } = useAuth();
 
   const { data: campaign } = useQuery({
     queryKey: ['campaign', campaignId],
@@ -185,39 +199,141 @@ export function SubmitProofScreen() {
   const submitMutation = useMutation({
     mutationFn: async () => {
       if (!checkpoint) throw new Error('Missing checkpoint');
+      const gpsLat = beforePhoto?.gps?.lat ?? 0;
+      const gpsLng = beforePhoto?.gps?.lng ?? 0;
+
+      // Build photo payload (compress for quality, then upload when using real API)
+      let beforePhotoData: string;
+      let afterPhotoData: string;
+      let gesturePhotoData: string | undefined;
+
       if (isNoBurn || isBanPlastic) {
         if (!beforePhoto) throw new Error('Missing photo');
         const compressed = await compressImage(beforePhoto.uri);
         const now = new Date();
         const oneMinAgo = new Date(now.getTime() - 60 * 1000);
+
+        if (API_CONFIG.USE_MOCK_API) {
+          return api.submissions.submit({
+            campaign_id: campaignId!,
+            checkpoint_id: checkpointId!,
+            gesture_photo: selfiePhoto ? await compressImage(selfiePhoto.uri) : undefined,
+            before_photo: compressed,
+            after_photo: compressed,
+            gps_lat: gpsLat,
+            gps_lng: gpsLng,
+            before_timestamp: oneMinAgo.toISOString(),
+            after_timestamp: now.toISOString(),
+          });
+        }
+
+        // Real API: upload to Supabase Storage, sign EIP-712, submit
+        const photosToUpload: { uri: string; suffix: string }[] = [
+          { uri: compressed, suffix: 'before' },
+        ];
+        if (selfiePhoto) photosToUpload.push({ uri: await compressImage(selfiePhoto.uri), suffix: 'selfie' });
+        const urls = await uploadSubmissionPhotos(photosToUpload);
+        const beforeUrl = urls[0];
+        const afterUrl = urls[0]; // single photo quest: same for before/after
+        const photoUrls = urls.length > 1 ? [urls[1], urls[0]] : [beforeUrl, afterUrl];
+
+        const onchainId = (campaign as Campaign & { onchain_id?: number })?.onchain_id;
+        if (onchainId == null) throw new Error('Campaign not yet on chain. Please try again later.');
+
+        const submissionHash = computeSubmissionHash(onchainId, photoUrls, gpsLat, gpsLng);
+        const recipient = evmAddress ?? user?.wallet_address ?? '';
+        if (!recipient) throw new Error('Wallet address required. Please sign in.');
+
+        const message = buildSubmissionMessage(submissionHash, recipient, Date.now());
+        const { signature } = await signEvmTypedData({
+          evmAccount: recipient as `0x${string}`,
+          typedData: {
+            domain: EIP712_DOMAIN,
+            types: EIP712_TYPES,
+            primaryType: 'BountyFiSubmission',
+            message,
+          },
+        });
+
         return api.submissions.submit({
           campaign_id: campaignId!,
           checkpoint_id: checkpointId!,
-          gesture_photo: selfiePhoto ? await compressImage(selfiePhoto.uri) : undefined,
-          before_photo: compressed,
-          after_photo: compressed,
-          gps_lat: beforePhoto.gps?.lat ?? 0,
-          gps_lng: beforePhoto.gps?.lng ?? 0,
+          gesture_photo: urls.length > 1 ? urls[1] : undefined,
+          before_photo: beforeUrl,
+          after_photo: afterUrl,
+          gps_lat: gpsLat,
+          gps_lng: gpsLng,
           before_timestamp: oneMinAgo.toISOString(),
           after_timestamp: now.toISOString(),
+          signature,
+          public_address: recipient,
+          eip712_message: message,
         });
       }
+
       if (!beforePhoto || !afterPhoto) throw new Error('Missing required data');
       const [compressedBefore, compressedAfter] = await Promise.all([
         compressImage(beforePhoto.uri),
         compressImage(afterPhoto.uri),
       ]);
       const compressedSelfie = selfiePhoto ? await compressImage(selfiePhoto.uri) : undefined;
+
+      if (API_CONFIG.USE_MOCK_API) {
+        return api.submissions.submit({
+          campaign_id: campaignId!,
+          checkpoint_id: checkpointId!,
+          gesture_photo: compressedSelfie,
+          before_photo: compressedBefore,
+          after_photo: compressedAfter,
+          gps_lat: gpsLat,
+          gps_lng: gpsLng,
+          before_timestamp: beforePhoto.timestamp,
+          after_timestamp: afterPhoto.timestamp,
+        });
+      }
+
+      // Real API: upload, sign EIP-712, submit
+      const photosToUpload: { uri: string; suffix: string }[] = [
+        { uri: compressedBefore, suffix: 'before' },
+        { uri: compressedAfter, suffix: 'after' },
+      ];
+      if (compressedSelfie) photosToUpload.unshift({ uri: compressedSelfie, suffix: 'selfie' });
+      const urls = await uploadSubmissionPhotos(photosToUpload);
+      const beforeUrl = urls.length > 2 ? urls[1] : urls[0];
+      const afterUrl = urls.length > 2 ? urls[2] : urls[1];
+      const photoUrls = urls.length > 2 ? [urls[1], urls[2]] : urls;
+
+      const onchainId = (campaign as Campaign & { onchain_id?: number })?.onchain_id;
+      if (onchainId == null) throw new Error('Campaign not yet on chain. Please try again later.');
+
+      const submissionHash = computeSubmissionHash(onchainId, photoUrls, gpsLat, gpsLng);
+      const recipient = evmAddress ?? user?.wallet_address ?? '';
+      if (!recipient) throw new Error('Wallet address required. Please sign in.');
+
+      const message = buildSubmissionMessage(submissionHash, recipient, Date.now());
+      const { signature } = await signEvmTypedData({
+        evmAccount: recipient as `0x${string}`,
+        typedData: {
+          domain: EIP712_DOMAIN,
+          types: EIP712_TYPES,
+          primaryType: 'BountyFiSubmission',
+          message,
+        },
+      });
+
       return api.submissions.submit({
         campaign_id: campaignId!,
         checkpoint_id: checkpointId!,
-        gesture_photo: compressedSelfie,
-        before_photo: compressedBefore,
-        after_photo: compressedAfter,
-        gps_lat: beforePhoto.gps?.lat ?? 0,
-        gps_lng: beforePhoto.gps?.lng ?? 0,
+        gesture_photo: urls.length > 2 ? urls[0] : undefined,
+        before_photo: beforeUrl,
+        after_photo: afterUrl,
+        gps_lat: gpsLat,
+        gps_lng: gpsLng,
         before_timestamp: beforePhoto.timestamp,
         after_timestamp: afterPhoto.timestamp,
+        signature,
+        public_address: recipient,
+        eip712_message: message,
       });
     },
     onSuccess: () => {

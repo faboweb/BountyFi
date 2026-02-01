@@ -7,6 +7,7 @@ import { supabase } from '../utils/supabase';
 import {
   AuthResponse,
   Campaign,
+  CampaignLootboxPullResult,
   Submission,
   User,
   UserSearchResult,
@@ -146,17 +147,19 @@ export const campaignsApi = {
 // Submissions API
 export const submissionsApi = {
   async submit(request: SubmitSubmissionRequest): Promise<Submission> {
-    // Relayer Submission via Supabase Edge Function
-    const { data: result, error } = await supabase.functions.invoke('relay_submission', {
-      body: {
-        campaign_id: request.campaign_id,
-        photo_urls: [request.before_photo, request.after_photo],
-        gps_lat: request.gps_lat,
-        gps_lng: request.gps_lng,
-        signature: request.signature,
-        public_address: request.public_address,
-      },
-    });
+    // Relayer Submission via Supabase Edge Function (EIP-712)
+    const body: Record<string, unknown> = {
+      campaign_id: request.campaign_id,
+      photo_urls: [request.before_photo, request.after_photo],
+      gps_lat: request.gps_lat,
+      gps_lng: request.gps_lng,
+      signature: request.signature,
+      public_address: request.public_address,
+    };
+    if (request.eip712_message) {
+      body.eip712_message = request.eip712_message;
+    }
+    const { data: result, error } = await supabase.functions.invoke('relay_submission', { body });
 
     if (error) throw error;
 
@@ -317,6 +320,19 @@ export const lotteryApi = {
     });
     if (error) throw error;
     return data;
+  },
+
+  /** Campaign lootbox: open lootbox (one pull) → response is "check if won". Campaign must be ended; higher-value prizes = lower chance; may win nothing. */
+  async openCampaignLootbox(campaignId: string, opts?: { signature?: string; message?: string }): Promise<CampaignLootboxPullResult> {
+    const body: { campaign_id: string; signature?: string; message?: string } = { campaign_id: campaignId };
+    if (opts?.signature != null && opts?.message != null) {
+      body.signature = opts.signature;
+      body.message = opts.message;
+    }
+    const { data, error } = await supabase.functions.invoke('campaign_lootbox_pull', { body });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as CampaignLootboxPullResult;
   },
 };
 

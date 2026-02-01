@@ -44,11 +44,13 @@ export interface Campaign {
   /** When set, enforces proof rules: uniserv_cleanup (before+after, min 1min, once); no_burn (one photo/day, 3mo) */
   quest_type?: QuestType;
   /** Prize chest: what you can win when redeeming tickets from this quest */
-  prize_chest?: { label: string; emoji: string }[];
+  prize_chest?: { label: string; emoji: string; metadataHash?: string; amount?: number | string; value?: number | string }[];
   /** Sponsors (companies, cafés, individuals) – shown under prizes to attract sponsors */
   sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
   /** Transaction hash from blockchain submission */
   tx_hash?: string;
+  /** On-chain campaign ID for relay submission */
+  onchain_id?: number | null;
 }
 
 export interface Checkpoint {
@@ -124,6 +126,17 @@ export interface PrizeTier {
   count: number;
 }
 
+/** Result of one campaign lootbox pull. Each pull is independent; user may win nothing or one prize. */
+export interface CampaignLootboxPullResult {
+  won: boolean;
+  prize: {
+    label: string;
+    emoji: string;
+    value: number;
+    amount?: number | string;
+  } | null;
+}
+
 export interface AuthResponse {
   token: string;
   wallet_address: string;
@@ -172,6 +185,8 @@ export interface SubmitSubmissionRequest {
   after_timestamp: string;
   signature?: string;
   public_address?: string;
+  /** EIP-712 message for relay verification */
+  eip712_message?: { submissionHash: string; recipient: string; nonce: string };
 }
 
 export interface ValidationRequest {
@@ -190,7 +205,7 @@ export interface CreateCampaignRequest {
   checkpoints: Omit<Checkpoint, 'id'>[];
   status?: 'active' | 'upcoming' | 'ended' | 'pending_onchain';
   quest_type?: QuestType;
-  prize_chest?: { label: string; emoji: string }[];
+  prize_chest?: { label: string; emoji: string; metadataHash?: string; amount?: number | string; value?: number | string }[];
   sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
   onchain_id?: string;
   tx_hash?: string;

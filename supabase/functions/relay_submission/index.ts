@@ -18,34 +18,12 @@ serve(async (req) => {
             Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
         )
 
-        const { campaign_id, photo_urls, gps_lat, gps_lng, signature, public_address } = await req.json()
+        const { campaign_id, photo_urls, gps_lat, gps_lng, signature, public_address, eip712_message } = await req.json()
 
         if (!signature || !public_address) throw new Error("Missing signature or address")
+        if (!eip712_message || !eip712_message.submissionHash || !eip712_message.recipient) throw new Error("Missing EIP-712 message (submissionHash, recipient, nonce)")
 
-        // 1. Verify Signature
-        // Determine what was signed. Ideally a hash of the content.
-        // For MVP, lets assume the user signed "Submit Campaign {id} at {lat},{lng}" or similar,
-        // Or simpler: Signed the KECCAK hash of the JSON of data.
-        // Let's assume the client sends the hash they signed as well to verify?
-        // Better: Reconstruct the message.
-        // Message: hash(campaign_id, photo_urls, gps_lat, gps_lng)
-
-        // For now, to allow flexibility in checking, we'll verify the signer matches the public_address provided.
-        // REALITY: verification logic needed.
-        const restoredAddress = ethers.verifyMessage("BountyFi Submission", signature);
-        // Wait, fixed message? Weak.
-        // Should be unique. 
-        // Let's assume user signs: keccak256(encodedParams)
-
-        // NOTE: For Hackathon speed, trusting the signature matches the address for now, 
-        // assuming frontend does it right. 
-        // If restoredAddress != public_address ... but verifyMessage expects the original text.
-        // If I don't know the original text, I can't verify.
-        // Let's assume the message is just the specific string "BountyFi Submission" for the MVP demo,
-        // combined with the nonce/timestamp to avoid replay?
-        // Let's use the `submission_hash` as the message?
-
-        // 2. Fetch onchain_id for this campaign
+        // 1. Fetch onchain_id for this campaign
         const { data: campaign, error: campaignError } = await supabaseClient
             .from('campaigns')
             .select('onchain_id')
@@ -53,16 +31,48 @@ serve(async (req) => {
             .single();
 
         if (campaignError) throw new Error(`Campaign fetch failed: ${campaignError.message}`);
-        const contractCampaignId = campaign.onchain_id;
+        const contractCampaignId = campaign?.onchain_id;
+        if (contractCampaignId == null) throw new Error("Campaign not yet on chain");
 
-        // Construct Hash
+        // 2. Recompute submission hash (must match client)
         const abiCoder = new ethers.AbiCoder();
         const submissionHash = ethers.keccak256(abiCoder.encode(
             ["uint256", "string[]", "int256", "int256"],
             [contractCampaignId, photo_urls, gps_lat, gps_lng]
         ));
 
-        // 3. Insert into DB (Pending state, no onchain_id yet)
+        if (submissionHash !== eip712_message.submissionHash) {
+            throw new Error("Submission hash mismatch - data may have been tampered");
+        }
+        if (eip712_message.recipient.toLowerCase() !== public_address.toLowerCase()) {
+            throw new Error("Recipient must match signer address");
+        }
+
+        // 3. Verify EIP-712 signature
+        const domain = {
+            name: "BountyFi",
+            version: "1",
+            chainId: 84532,
+            verifyingContract: "0x0000000000000000000000000000000000000000",
+        };
+        const types = {
+            BountyFiSubmission: [
+                { name: "submissionHash", type: "bytes32" },
+                { name: "recipient", type: "address" },
+                { name: "nonce", type: "uint256" },
+            ],
+        };
+        const recoveredAddress = ethers.verifyTypedData(
+            domain,
+            types,
+            eip712_message,
+            signature
+        );
+        if (recoveredAddress.toLowerCase() !== public_address.toLowerCase()) {
+            throw new Error("Invalid EIP-712 signature");
+        }
+
+        // 4. Insert into DB (Pending state, no onchain_id yet)
         const { data: submission, error: insertError } = await supabaseClient
             .from('submissions')
             .insert({
