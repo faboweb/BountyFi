@@ -18,14 +18,25 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import * as Location from 'expo-location';
+import { ethers } from 'ethers';
+import { useSendUserOperation, useWaitForUserOperation } from '@coinbase/cdp-hooks';
 import { AppStackParamList } from '../../navigation/AppNavigator';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
 import { Button } from '../../components/Button';
 import { CameraCapture } from '../../components/CameraCapture';
+import { supabase } from '../../utils/supabase';
+import { api } from '../../api/client';
+import { useAuth } from '../../auth/context';
+import { CHAIN_CONFIG } from '../../config/chain';
 
 const MIN_DONATION_THB = 50;
 const DEFAULT_REGION = { latitude: 18.7883, longitude: 98.9853, latitudeDelta: 0.05, longitudeDelta: 0.05 };
 const TIMEFRAME_DAYS = 90;
+
+const BOUNTYFI_ABI = [
+  "function createCampaign(string _title, uint8 _type, uint256 _reward, uint256 _stake, uint256 _radius, uint256 _aiThreshold, tuple(string label, string emoji)[] _prizes) external",
+  "event CampaignCreated(uint256 indexed campaignId, string title, uint8 campaignType, uint256 rewardAmount, uint256 prizeCount)",
+];
 
 function formatDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -95,7 +106,20 @@ type NavigationProp = NativeStackNavigationProp<AppStackParamList, 'CreateQuest'
 
 export function CreateQuestScreen() {
   const navigation = useNavigation<NavigationProp>();
+  const { user, isCDPAuthenticated } = useAuth();
   const [step, setStep] = React.useState(1);
+
+  // Blockchain transaction state
+  const [showConfirmDialog, setShowConfirmDialog] = React.useState(false);
+  const [pendingCampaignData, setPendingCampaignData] = React.useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [currentUserOpHash, setCurrentUserOpHash] = React.useState<string | null>(null);
+
+  const { sendUserOperation, status: userOpStatus } = useSendUserOperation();
+  const { data: waitResult, status: waitStatus } = useWaitForUserOperation({
+    userOperationHash: (currentUserOpHash as any),
+    enabled: !!currentUserOpHash,
+  });
 
   // Step 1 – multiple quest types allowed; selfie check-in is always included (mandatory)
   const [name, setName] = React.useState('');
@@ -214,17 +238,7 @@ export function CreateQuestScreen() {
     timeframeStart.trim().length > 0 &&
     timeframeEnd.trim().length > 0;
   const canProceedStep2 = location.trim().length > 0 && pin != null && radius.trim().length > 0 && parseInt(radius, 10) > 0;
-  const donationNum = parseInt(donation, 10) || 0;
-  const hasCompanyName = companyName.trim().length > 0;
-  const hasBrandPhoto = brandPhotoUri != null;
-  const hasGoodsDescription = goodsHashtags.size > 0 || goodsCustomText.trim().length > 0;
-  const hasGoodsPhoto = goodsPhotoUri != null;
-  const canProceedStep3 =
-    hasCompanyName &&
-    hasBrandPhoto &&
-    hasGoodsDescription &&
-    hasGoodsPhoto &&
-    donationNum >= MIN_DONATION_THB;
+
 
   const handleNext = () => {
     if (step === 1 && !canProceedStep1) {
@@ -235,7 +249,9 @@ export function CreateQuestScreen() {
       Alert.alert('Missing info', 'Please enter location name, set a pin on the map, and enter radius (meters).');
       return;
     }
-    if (step < 3) setStep((s) => s + 1);
+
+    if (step < 2) setStep((s) => s + 1);
+
   };
 
   const handleBack = () => {
@@ -244,13 +260,172 @@ export function CreateQuestScreen() {
   };
 
   const handleCreate = () => {
-    if (!canProceedStep3) {
-      Alert.alert('Missing info', 'Please fill in all donor fields and set donation amount (min ' + MIN_DONATION_THB + ' THB).');
+    // Validate all required fields
+    if (!name.trim() || !description.trim() || !location.trim() || !pin || !radius) {
+      Alert.alert('Missing info', 'Please complete all required fields.');
       return;
     }
-    setCreatedQuestTitle(name.trim());
-    setCreated(true);
+
+    // Prepare campaign data for confirmation
+    const campaignData = {
+      title: name.trim(),
+      description: description.trim(),
+      prize_total: 0, // Default for basic quest
+      min_funding_thb: MIN_DONATION_THB,
+      requires_face_recognition: false,
+      start_date: timeframeStart ? new Date(timeframeStart.replace(/-/g, '/')).toISOString() : new Date().toISOString(),
+      end_date: timeframeEnd ? new Date(timeframeEnd.replace(/-/g, '/')).toISOString() : new Date().toISOString(),
+      checkpoints: [
+        {
+          lat: pin.latitude,
+          lng: pin.longitude,
+          radius: parseInt(radius, 10),
+          name: location.trim(),
+        }
+      ],
+      prize_chest: [], // Empty for basic quest, can add UI for prizes later
+      sponsors: [], // Empty for now
+    };
+
+    setPendingCampaignData(campaignData);
+    setShowConfirmDialog(true);
   };
+
+  const handleConfirmSubmit = async () => {
+    if (!user?.wallet_address) {
+      Alert.alert('Error', 'Wallet not connected');
+      return;
+    }
+
+    if (!isCDPAuthenticated) {
+      Alert.alert(
+        'Authentication Required',
+        'Your Coinbase wallet session has expired. Please log out and log back in to continue.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setShowConfirmDialog(false);
+              setIsSubmitting(false);
+            }
+          }
+        ]
+      );
+      return;
+    }
+
+    setShowConfirmDialog(false);
+    setIsSubmitting(true);
+
+    try {
+      // Prepare transaction data
+      const iface = new ethers.Interface(BOUNTYFI_ABI);
+
+      // Map prizes for contract (empty array for basic quest)
+      const prizes = pendingCampaignData.prize_chest.map((p: any) => [p.label, p.emoji]);
+
+      // Encode contract call
+      const txData = iface.encodeFunctionData('createCampaign', [
+        pendingCampaignData.title,
+        0, // Campaign type: SINGLE_PHOTO
+        ethers.parseEther('0.001'), // Reward amount (0.001 ETH default)
+        ethers.parseEther('0.0001'), // Stake amount (0.0001 ETH default)
+        pendingCampaignData.checkpoints[0].radius, // Radius in meters
+        50, // AI threshold (50% default)
+        prizes,
+      ]);
+
+      console.log('[CreateQuest] Sending transaction to blockchain...');
+      console.log('[CreateQuest] Smart account:', user.wallet_address);
+      console.log('[CreateQuest] Contract address:', CHAIN_CONFIG.BOUNTYFI_ADDRESS);
+
+      // Send transaction via Coinbase CDP
+      const result = await sendUserOperation({
+        evmSmartAccount: user.wallet_address as any,
+        network: 'base-sepolia' as any,
+        calls: [{ to: CHAIN_CONFIG.BOUNTYFI_ADDRESS as any, data: txData as any }],
+        useCdpPaymaster: true,
+      });
+
+      if (!result?.userOperationHash) {
+        throw new Error('Failed to send transaction: no operation hash returned');
+      }
+
+      console.log('[CreateQuest] Transaction sent, hash:', result.userOperationHash);
+      setCurrentUserOpHash(result.userOperationHash);
+    } catch (error: any) {
+      console.error('[CreateQuest] Transaction failed:', error);
+      Alert.alert('Transaction failed', error.message || 'Failed to submit to blockchain');
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleTransactionConfirmed = async (receipt: any) => {
+    try {
+      // Parse CampaignCreated event to get campaign ID
+      const iface = new ethers.Interface(BOUNTYFI_ABI);
+      const eventTopic = iface.getEvent('CampaignCreated')?.topicHash;
+      const log = receipt.logs?.find((l: any) => l.topics[0] === eventTopic);
+
+      if (!log) {
+        throw new Error('CampaignCreated event not found in transaction receipt');
+      }
+
+      const parsed = iface.parseLog({ topics: log.topics, data: log.data });
+      const campaignId = parsed?.args?.campaignId?.toString();
+
+      if (!campaignId) {
+        throw new Error('Failed to parse campaign ID from event');
+      }
+
+      // Create Supabase record AFTER blockchain confirmation
+      await api.campaigns.create({
+        ...pendingCampaignData,
+        status: 'pending_onchain',
+        tx_hash: receipt.transactionHash,
+      });
+
+      // Trigger indexer to sync from blockchain
+      await supabase.functions.invoke('indexer', {
+        body: {
+          event: 'sync_campaign',
+          campaignId: campaignId,
+          transactionHash: receipt.transactionHash,
+        }
+      });
+
+      // Show success screen
+      setCreatedQuestTitle(pendingCampaignData.title);
+      setCreated(true);
+      setIsSubmitting(false);
+    } catch (error: any) {
+      console.error('Post-transaction error:', error);
+      Alert.alert(
+        'Campaign created on-chain',
+        'The campaign was created on the blockchain but failed to sync with the database. Please refresh the app to see it.',
+        [
+          {
+            text: 'OK',
+            onPress: () => {
+              setIsSubmitting(false);
+              navigation.navigate('DonateHome');
+            }
+          }
+        ]
+      );
+    }
+  };
+
+  // Watch for transaction confirmation
+  React.useEffect(() => {
+    if (waitStatus === 'success' && waitResult?.receipt && pendingCampaignData) {
+      handleTransactionConfirmed(waitResult.receipt);
+    } else if (waitStatus === 'error') {
+      Alert.alert('Transaction failed', 'The blockchain transaction failed. Please try again.');
+      setIsSubmitting(false);
+      setCurrentUserOpHash(null);
+    }
+  }, [waitStatus, waitResult, pendingCampaignData]);
 
   const handleShare = async () => {
     try {
@@ -281,7 +456,8 @@ export function CreateQuestScreen() {
     );
   }
 
-  const stepTitles = ['Quest name & type', 'Configurations', 'Donor / donation'];
+  const stepTitles = ['Quest name & type', 'Configurations'];
+
   const currentStepTitle = stepTitles[step - 1];
 
   return (
@@ -295,7 +471,7 @@ export function CreateQuestScreen() {
       </View>
 
       <View style={styles.stepIndicator}>
-        {[1, 2, 3].map((s) => (
+        {[1, 2].map((s) => (
           <View key={s} style={[styles.stepDot, s === step && styles.stepDotActive, s < step && styles.stepDotDone]} />
         ))}
       </View>
@@ -506,101 +682,64 @@ export function CreateQuestScreen() {
             </>
           )}
 
-          {/* Step 3: Donor / initial donation */}
-          {step === 3 && (
-            <>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Company name *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Your company or brand name"
-                  placeholderTextColor={Colors.textGray}
-                  value={companyName}
-                  onChangeText={setCompanyName}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Photo of your brand *</Text>
-                {brandPhotoUri ? (
-                  <View style={styles.photoRow}>
-                    <Image source={{ uri: brandPhotoUri }} style={styles.photoThumb} resizeMode="cover" />
-                    <TouchableOpacity style={styles.changePhotoBtn} onPress={() => setPhotoModal('brand')}>
-                      <Text style={styles.changePhotoText}>Change</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity style={styles.addPhotoBox} onPress={() => setPhotoModal('brand')}>
-                    <Text style={styles.addPhotoEmoji}>📷</Text>
-                    <Text style={styles.addPhotoText}>Add photo of your brand</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Details of what you're donating *</Text>
-                <Text style={styles.inputHint}>Select hashtags or add details in your own words.</Text>
-                <View style={styles.tagRow}>
-                  {GOODS_HASHTAGS.map((t) => (
-                    <TouchableOpacity
-                      key={t.id}
-                      style={[styles.tagChip, goodsHashtags.has(t.id) && styles.tagChipSelected]}
-                      onPress={() => toggleGoodsHashtag(t.id)}
-                    >
-                      <Text style={[styles.tagLabel, goodsHashtags.has(t.id) && styles.tagLabelSelected]}>{t.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-                <TextInput
-                  style={[styles.input, styles.inputMultiline, styles.goodsCustomInput]}
-                  placeholder="Or add details of what you're donating..."
-                  placeholderTextColor={Colors.textGray}
-                  value={goodsCustomText}
-                  onChangeText={setGoodsCustomText}
-                  multiline
-                  numberOfLines={2}
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Photo of the donated goods *</Text>
-                {goodsPhotoUri ? (
-                  <View style={styles.photoRow}>
-                    <Image source={{ uri: goodsPhotoUri }} style={styles.photoThumb} resizeMode="cover" />
-                    <TouchableOpacity style={styles.changePhotoBtn} onPress={() => setPhotoModal('goods')}>
-                      <Text style={styles.changePhotoText}>Change</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <TouchableOpacity style={styles.addPhotoBox} onPress={() => setPhotoModal('goods')}>
-                    <Text style={styles.addPhotoEmoji}>📦</Text>
-                    <Text style={styles.addPhotoText}>Add photo of the donated goods</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Initial donation value (THB) *</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder={`Minimum ${MIN_DONATION_THB} THB`}
-                  placeholderTextColor={Colors.textGray}
-                  value={donation}
-                  onChangeText={setDonation}
-                  keyboardType="numeric"
-                />
-                <View style={styles.reminderBox}>
-                  <Text style={styles.reminderText}>Minimum {MIN_DONATION_THB} THB required to create a quest.</Text>
-                </View>
-              </View>
-            </>
-          )}
+
 
           <View style={styles.footerButtons}>
-            {step < 3 ? (
+            {step < 2 ? (
               <Button title="Next" onPress={handleNext} variant="primary" style={styles.nextBtn} />
             ) : (
-              <Button title="Create!" onPress={handleCreate} variant="primary" style={styles.nextBtn} disabled={!canProceedStep3} />
+              <Button title="Create!" onPress={handleCreate} variant="primary" style={styles.nextBtn} />
             )}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <Modal visible={showConfirmDialog} animationType="slide" transparent onRequestClose={() => !isSubmitting && setShowConfirmDialog(false)}>
+        <View style={styles.confirmDialogOverlay}>
+          <View style={styles.confirmDialogContainer}>
+            <Text style={styles.confirmDialogTitle}>Confirm Quest Launch</Text>
+            <ScrollView style={styles.confirmDialogScroll} showsVerticalScrollIndicator={false}>
+              <Text style={styles.confirmDialogLabel}>Quest:</Text>
+              <Text style={styles.confirmDialogValue}>{pendingCampaignData?.title}</Text>
+
+              <Text style={styles.confirmDialogLabel}>Location:</Text>
+              <Text style={styles.confirmDialogValue}>{pendingCampaignData?.checkpoints?.[0]?.name}</Text>
+
+              <Text style={styles.confirmDialogLabel}>Timeframe:</Text>
+              <Text style={styles.confirmDialogValue}>
+                {timeframeStart} → {timeframeEnd}
+              </Text>
+
+              <View style={styles.confirmDialogNote}>
+                <Text style={styles.confirmDialogNoteText}>
+                  This will submit your quest to the blockchain. Transaction fees are covered by Coinbase.
+                </Text>
+              </View>
+            </ScrollView>
+
+            <View style={styles.confirmDialogButtons}>
+              <TouchableOpacity
+                style={[styles.confirmDialogBtn, styles.confirmDialogBtnSecondary]}
+                onPress={() => setShowConfirmDialog(false)}
+                disabled={isSubmitting}
+              >
+                <Text style={styles.confirmDialogBtnTextSecondary}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.confirmDialogBtn, styles.confirmDialogBtnPrimary]}
+                onPress={handleConfirmSubmit}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : (
+                  <Text style={styles.confirmDialogBtnTextPrimary}>Confirm & Launch</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={photoModal !== null} animationType="slide" onRequestClose={() => setPhotoModal(null)}>
         <View style={styles.modalContainer}>
@@ -699,9 +838,24 @@ const styles = StyleSheet.create({
     ...Shadows.sm,
   },
   typeCardSelected: { borderColor: Colors.ivoryBlue, backgroundColor: Colors.ivoryBlueLight + '15' },
+  typeCardMandatory: { borderColor: Colors.creamDark, opacity: 0.9 },
   typeLabel: { fontSize: 16, fontWeight: '700', color: Colors.ivoryBlueDark, marginBottom: 4 },
   typeLabelSelected: { color: Colors.ivoryBlue },
   typeDescription: { fontSize: 13, color: Colors.textGray, lineHeight: 20 },
+  typeBadge: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    backgroundColor: Colors.creamDark,
+    borderRadius: BorderRadius.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.textGray,
+    textTransform: 'uppercase',
+  },
+
   timeframeSelectRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.xs, marginBottom: Spacing.md },
   timeframeChip: {
     flex: 1,
@@ -865,4 +1019,88 @@ const styles = StyleSheet.create({
   shareBtn: { width: '100%', marginBottom: Spacing.md },
   doneBtn: { paddingVertical: Spacing.md },
   doneBtnText: { fontSize: 16, fontWeight: '600', color: Colors.ivoryBlue },
+  confirmDialogOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  confirmDialogContainer: {
+    backgroundColor: Colors.cream,
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
+    ...Shadows.lg,
+  },
+  confirmDialogTitle: {
+    fontFamily: Typography.heading.fontFamily,
+    fontWeight: '700',
+    fontSize: 20,
+    color: Colors.ivoryBlueDark,
+    marginBottom: Spacing.md,
+    textAlign: 'center',
+  },
+  confirmDialogScroll: {
+    maxHeight: 300,
+    marginBottom: Spacing.md,
+  },
+  confirmDialogLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.textGray,
+    marginTop: Spacing.sm,
+    marginBottom: Spacing.xs,
+  },
+  confirmDialogValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.ivoryBlueDark,
+    marginBottom: Spacing.xs,
+  },
+  confirmDialogNote: {
+    backgroundColor: Colors.ivoryBlueLight + '25',
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginTop: Spacing.md,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.ivoryBlue,
+  },
+  confirmDialogNoteText: {
+    fontSize: 13,
+    color: Colors.ivoryBlueDark,
+    lineHeight: 20,
+  },
+  confirmDialogButtons: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  confirmDialogBtn: {
+    flex: 1,
+    paddingVertical: Spacing.md,
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 48,
+  },
+  confirmDialogBtnSecondary: {
+    backgroundColor: Colors.white,
+    borderWidth: 2,
+    borderColor: Colors.creamDark,
+  },
+  confirmDialogBtnPrimary: {
+    backgroundColor: Colors.ivoryBlue,
+  },
+  confirmDialogBtnTextSecondary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.ivoryBlueDark,
+  },
+  confirmDialogBtnTextPrimary: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.white,
+  },
 });

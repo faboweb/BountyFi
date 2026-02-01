@@ -48,8 +48,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const { signOut: signOutCDP } = useCDPSignOut();
   const rawIsSignedInCDP = useIsSignedIn();
 
-  // Normalize to boolean because sometimes it returns an object in early renders
-  const isSignedInCDP = !!rawIsSignedInCDP;
+  // The hook returns { isSignedIn: boolean } on web, but we want a simple boolean.
+  const isSignedInCDP = typeof rawIsSignedInCDP === 'boolean' 
+    ? rawIsSignedInCDP 
+    : !!(rawIsSignedInCDP as any)?.isSignedIn;
 
   // Use refs to track CDP state changes across async closures
   const isSignedInCDPRef = useRef(isSignedInCDP);

@@ -7,8 +7,10 @@ const BOUNTYFI_ADDRESS = Deno.env.get('BOUNTYFI_ADDRESS')
 
 const BOUNTYFI_ABI = [
     "event SubmissionCreated(uint256 indexed submissionId, uint256 indexed campaignId, address indexed submitter)",
+    "event CampaignCreated(uint256 indexed campaignId, string title, uint8 campaignType, uint256 rewardAmount, uint256 prizeCount)",
     "function submissions(uint256) view returns (uint256 campaignId, address submitter, string photoUrl, bytes32 photoHash, int256 lat, int256 lng, uint8 status, uint256 aiConfidence, uint256 approveVotes, uint256 rejectVotes, uint256 createdAt)",
-    "function campaigns(uint256) view returns (uint8 campaignType, uint256 rewardAmount, uint256 stakeAmount, uint256 radiusM, uint256 aiThreshold, bool active)"
+    "function campaigns(uint256) view returns (string title, uint8 campaignType, uint256 rewardAmount, uint256 stakeAmount, uint256 radiusM, uint256 aiThreshold, bool active)",
+    "function getCampaignPrizes(uint256 _campaignId) view returns (tuple(string label, string emoji)[])"
 ]
 
 serve(async (req) => {
@@ -18,15 +20,125 @@ serve(async (req) => {
     )
 
     try {
-        const { event } = await req.json() // Triggered by a log watcher or manual sync
+        const body = await req.json()
+        const { event } = body
+        const eventData = body
 
         if (!RPC_URL || !BOUNTYFI_ADDRESS) throw new Error("Missing Chain Config")
         const provider = new ethers.JsonRpcProvider(RPC_URL)
         const contract = new ethers.Contract(BOUNTYFI_ADDRESS, BOUNTYFI_ABI, provider)
 
-        if (event === "sync_campaigns") {
-            // Logic to sync all active campaigns
-            // ...
+        if (event === "sync_campaign") {
+            const { campaignId, transactionHash } = eventData
+            console.log(`[indexer] Syncing campaign ${campaignId}, tx: ${transactionHash}`)
+            
+            const camp = await contract.campaigns(campaignId)
+            console.log(`[indexer] Campaign data from chain:`, camp)
+
+            // Get sender from transaction
+            const tx = await provider.getTransaction(transactionHash)
+            const sender = tx?.from
+            console.log(`[indexer] Transaction sender: ${sender}`)
+
+            let userId = null
+            if (sender) {
+                const { data: user } = await supabaseClient
+                    .from('users')
+                    .select('id')
+                    .eq('wallet_address', sender)
+                    .single()
+                userId = user?.id
+                console.log(`[indexer] Found user: ${userId}`)
+            }
+
+            // Fetch prizes from contract
+            let prizeChest = []
+            try {
+                const prizes = await contract.getCampaignPrizes(campaignId)
+                prizeChest = prizes.map((p: any) => ({
+                    label: p.label,
+                    emoji: p.emoji
+                }))
+                console.log(`[indexer] Prizes:`, prizeChest)
+            } catch (e) {
+                console.warn('[indexer] Failed to fetch prizes:', e)
+            }
+
+            // Find matching pending row by tx_hash, userOpHash (stored in tx_hash column), or fallback to donator_id
+            let pending = null
+            
+            // Try matching by exact tx_hash first
+            if (transactionHash) {
+                const { data: pendingByTx } = await supabaseClient
+                    .from('campaigns')
+                    .select('*')
+                    .eq('tx_hash', transactionHash)
+                    .eq('status', 'pending_onchain')
+                    .maybeSingle()
+                pending = pendingByTx
+                console.log(`[indexer] Found pending by tx_hash:`, pending?.id)
+            }
+
+            // Fallback: find any pending campaign for this user (most recent)
+            if (!pending && userId) {
+                const { data: pendingByUser } = await supabaseClient
+                    .from('campaigns')
+                    .select('*')
+                    .eq('status', 'pending_onchain')
+                    .eq('donator_id', userId)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .maybeSingle()
+                pending = pendingByUser
+                console.log(`[indexer] Found pending by user:`, pending?.id)
+            }
+
+            // Update the tx_hash to the real transaction hash if we found a pending record
+            if (pending && transactionHash && pending.tx_hash !== transactionHash) {
+                console.log(`[indexer] Updating tx_hash from ${pending.tx_hash} to ${transactionHash}`)
+            }
+
+            const types = ["SINGLE_PHOTO", "TWO_PHOTO_CHANGE", "CHECKIN_SELFIE"]
+
+            // Only update chain-related fields, preserve off-chain metadata
+            const chainPayload = {
+                onchain_id: campaignId.toString(),
+                campaign_type: types[camp.campaignType] || "SINGLE_PHOTO",
+                reward_amount: Number(ethers.formatEther(camp.rewardAmount)),
+                stake_amount: Number(ethers.formatEther(camp.stakeAmount)),
+                radius_m: Number(camp.radiusM),
+                ai_threshold: Number(camp.aiThreshold),
+                prize_chest: prizeChest,
+                status: camp.active ? 'active' : 'ended',
+                donator_id: userId,
+            } as any
+
+            console.log(`[indexer] Chain payload:`, chainPayload)
+
+            if (pending) {
+                // Update existing pending record, preserve title/description/sponsors
+                const { error: updateError } = await supabaseClient.from('campaigns')
+                    .update(chainPayload)
+                    .eq('id', pending.id)
+                if (updateError) {
+                    console.error('[indexer] Update error:', updateError)
+                    throw updateError
+                }
+                console.log(`[indexer] Updated existing campaign: ${pending.id}`)
+            } else {
+                // Fallback: create new record with title from chain
+                const newCampaign = {
+                    ...chainPayload,
+                    title: camp.title || `Campaign #${campaignId}`,
+                }
+                const { error: upsertError } = await supabaseClient.from('campaigns')
+                    .upsert(newCampaign, { onConflict: 'onchain_id' })
+                if (upsertError) {
+                    console.error('[indexer] Upsert error:', upsertError)
+                    throw upsertError
+                }
+                console.log(`[indexer] Created new campaign from chain`)
+            }
         }
 
         if (event === "sync_submission") {

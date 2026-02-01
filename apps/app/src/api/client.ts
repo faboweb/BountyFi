@@ -93,6 +93,7 @@ export const campaignsApi = {
     const { data, error } = await supabase
       .from('campaigns')
       .select('*')
+      .in('status', ['active', 'upcoming', 'ended'])
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -131,6 +132,7 @@ export const campaignsApi = {
       end_date: request.end_date,
       checkpoints: request.checkpoints,
       status: request.status || 'active',
+      onchain_id: request.onchain_id,
     };
 
     const { data, error } = await supabase.functions.invoke('manage_campaign', { body });
@@ -166,12 +168,20 @@ export const submissionsApi = {
 
   async getPending(): Promise<Submission[]> {
     const savedUser = await authStorage.getUser();
+    if (!savedUser?.wallet_address) {
+      console.log('[submissionsApi.getPending] No wallet address found, skipping task fetch');
+      return [];
+    }
+
     const { data: pending, error } = await supabase.functions.invoke('get_tasks', {
       body: { validator_address: savedUser?.wallet_address }
     });
+
     if (error) {
-      console.warn('get_tasks function failed, falling back to REST', error);
-      // Fallback or empty
+      console.warn('[submissionsApi.getPending] get_tasks function failed:', {
+        message: error.message,
+        details: error,
+      });
       return [];
     }
     return pending || [];

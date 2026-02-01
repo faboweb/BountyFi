@@ -13,7 +13,13 @@ contract BountyFi is AccessControl {
     enum CampaignType { SINGLE_PHOTO, TWO_PHOTO_CHANGE, CHECKIN_SELFIE }
     enum SubmissionStatus { PENDING, AI_VERIFIED, JURY_VOTING, REJECTED, APPROVED }
 
+    struct Prize {
+        string label;
+        string emoji;
+    }
+
     struct Campaign {
+        string title;
         CampaignType campaignType;
         uint256 rewardAmount;
         uint256 stakeAmount;
@@ -21,6 +27,9 @@ contract BountyFi is AccessControl {
         uint256 aiThreshold;
         bool active;
     }
+
+    // Prize storage: campaignId => prizes array
+    mapping(uint256 => Prize[]) private campaignPrizes;
 
     struct Submission {
         uint256 campaignId;
@@ -44,7 +53,7 @@ contract BountyFi is AccessControl {
     mapping(uint256 => Submission) public submissions;
     mapping(uint256 => mapping(address => bool)) public hasVoted;
 
-    event CampaignCreated(uint256 indexed campaignId, CampaignType campaignType, uint256 rewardAmount);
+    event CampaignCreated(uint256 indexed campaignId, string title, CampaignType campaignType, uint256 rewardAmount, uint256 prizeCount);
     event SubmissionCreated(uint256 indexed submissionId, uint256 indexed campaignId, address indexed submitter, bytes32 submissionHash);
     event AIScoreSubmitted(uint256 indexed submissionId, uint256 confidence);
     event Voted(uint256 indexed submissionId, address indexed juror, bool approve);
@@ -59,15 +68,27 @@ contract BountyFi is AccessControl {
     }
 
     function createCampaign(
+        string memory _title,
         CampaignType _type,
         uint256 _reward,
         uint256 _stake,
         uint256 _radius,
-        uint256 _aiThreshold
-    ) external onlyRole(CAMPAIGN_MANAGER_ROLE) {
-        campaigns[nextCampaignId] = Campaign(_type, _reward, _stake, _radius, _aiThreshold, true);
-        emit CampaignCreated(nextCampaignId, _type, _reward);
+        uint256 _aiThreshold,
+        Prize[] memory _prizes
+    ) external {
+        campaigns[nextCampaignId] = Campaign(_title, _type, _reward, _stake, _radius, _aiThreshold, true);
+
+        // Store prizes
+        for (uint256 i = 0; i < _prizes.length; i++) {
+            campaignPrizes[nextCampaignId].push(_prizes[i]);
+        }
+
+        emit CampaignCreated(nextCampaignId, _title, _type, _reward, _prizes.length);
         nextCampaignId++;
+    }
+
+    function getCampaignPrizes(uint256 _campaignId) external view returns (Prize[] memory) {
+        return campaignPrizes[_campaignId];
     }
 
     // Pending Submissions Tracking

@@ -162,8 +162,9 @@ export function CampaignsScreen() {
           const isCleanup = item.quest_type === 'uniserv_cleanup';
           const isNoBurn = item.quest_type === 'no_burn';
           const isBanPlastic = item.quest_type === 'ban_plastic';
-          const borderColor = isCleanup ? Colors.grass : isNoBurn ? Colors.coral : isBanPlastic ? Colors.lavender : Colors.ivoryBlue;
-          const progress = isCleanup ? 65 : isNoBurn ? 30 : isBanPlastic ? 45 : 50;
+          const hasDonations = (item.prize_total ?? 0) > 0;
+          const borderColor = !hasDonations ? '#CCCCCC' : (isCleanup ? Colors.grass : isNoBurn ? Colors.coral : isBanPlastic ? Colors.lavender : Colors.ivoryBlue);
+          const progress = !hasDonations ? 0 : (isCleanup ? 65 : isNoBurn ? 30 : isBanPlastic ? 45 : 50);
           const subtitle =
             isCleanup
               ? 'Before & after (min 1 min). One participation only.'
@@ -177,9 +178,9 @@ export function CampaignsScreen() {
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => navigation.navigate('CampaignDetail', { campaignId: item.id })}
-              style={[styles.campaignCard, { borderLeftColor: borderColor }]}
+              style={[styles.campaignCard, { borderLeftColor: borderColor, opacity: hasDonations ? 1 : 0.7 }]}
             >
-              <Text style={styles.campaignTitle}>
+              <Text style={[styles.campaignTitle, !hasDonations && { color: '#888888' }]}>
                 {isCleanup ? '🌳' : isNoBurn ? '🚭' : isBanPlastic ? '🛍️' : '📍'} {item.title}
               </Text>
               <View style={styles.campaignProgress}>
@@ -189,12 +190,12 @@ export function CampaignsScreen() {
                       styles.progressFill,
                       {
                         width: `${progress}%`,
-                        backgroundColor: isCleanup ? Colors.grass : isNoBurn ? Colors.coral : isBanPlastic ? Colors.lavender : Colors.ivoryBlue,
+                        backgroundColor: borderColor,
                       },
                     ]}
                   />
                 </View>
-                <Text style={styles.progressText}>{progress}%</Text>
+                <Text style={[styles.progressText, !hasDonations && { color: '#888888' }]}>{progress}%</Text>
               </View>
               <Text style={styles.campaignSubtitle} numberOfLines={2}>{subtitle}</Text>
             </TouchableOpacity>

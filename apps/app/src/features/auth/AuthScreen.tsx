@@ -35,19 +35,29 @@ export function AuthScreen() {
   // Clear only truly stale CDP sessions: CDP says signed in but we have no persisted session.
   // Run only after auth has finished loading so we don't clear CDP before checkAuth restores from storage.
   useEffect(() => {
-    if (authLoading) return; // Wait for checkAuth to complete so we don't race and clear a valid session
+    if (authLoading) return; 
+    
+    let cancelled = false;
     const cleanupStaleCDPSession = async () => {
-      if (!isCDPAuthenticated) return;
+      // Small delay to let any rehydration finalize
+      await new Promise(resolve => setTimeout(resolve, 500));
+      if (cancelled || !isCDPAuthenticated) return;
+
       try {
         const token = await authStorage.getToken();
-        if (token) return; // Persisted session exists – do not clear CDP
-        console.log('[AuthScreen] Detected stale CDP session (no stored session), cleaning up...');
+        if (token) {
+          console.debug('[AuthScreen] CDP session is valid (persisted token found)');
+          return; 
+        }
+
+        console.log('[AuthScreen] Detected stale CDP session (isCDPAuthenticated=true but no stored token), cleaning up...');
         await clearCDPSession();
       } catch (e) {
         console.warn('[AuthScreen] Cleanup check failed:', e);
       }
     };
     cleanupStaleCDPSession();
+    return () => { cancelled = true; };
   }, [authLoading, isCDPAuthenticated, clearCDPSession]);
 
   const handleHardReset = async () => {

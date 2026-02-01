@@ -8,18 +8,36 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+    console.log(`manage_campaign function called: ${req.method}`)
+
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
     }
 
-    const supabaseClient = createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!supabaseUrl || !supabaseServiceRoleKey) {
+        console.error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables")
+        return new Response(
+            JSON.stringify({ error: "Server configuration error" }),
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        )
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseServiceRoleKey)
 
     try {
-        const payload = await req.json()
+        let payload;
+        try {
+            payload = await req.json()
+        } catch (e: any) {
+            console.error("Failed to parse request body:", e.message)
+            throw new Error("Invalid request body")
+        }
+
         const { action, ...data } = payload
+        console.log(`Action: ${action}`, data)
 
         if (action === 'CREATE_DONATOR') {
             const { user_id, name, logo_url, bio, website } = data
@@ -33,7 +51,7 @@ serve(async (req) => {
         }
 
         if (action === 'CREATE_CAMPAIGN') {
-            const { user_id, title, description, prize_total, min_funding_thb, requires_face_recognition, start_date, end_date, checkpoints, status } = data
+            const { user_id, title, description, prize_total, min_funding_thb, requires_face_recognition, start_date, end_date, checkpoints, tx_hash } = data
             if (!title) throw new Error("title is required")
             const row = {
                 title,
@@ -46,9 +64,16 @@ serve(async (req) => {
                 end_date: end_date ?? null,
                 deadline: end_date ?? null,
                 checkpoints: checkpoints ?? null,
-                status: status ?? 'active',
+                status: 'pending_onchain',
                 donator_id: user_id ?? null,
                 current_pool: prize_total ?? 0,
+                tx_hash: tx_hash ?? null,
+                // Required by DB constraints
+                campaign_type: 'SINGLE_PHOTO',
+                reward_amount: 0,
+                stake_amount: 0,
+                radius_m: 50,
+                ai_threshold: 80,
             }
             const { data: campaign, error } = await supabaseClient
                 .from('campaigns')
@@ -100,7 +125,8 @@ serve(async (req) => {
 
         throw new Error("Invalid action")
 
-    } catch (error) {
+    } catch (error: any) {
+        console.error("manage_campaign function error:", error.message)
         return new Response(
             JSON.stringify({ error: error.message }),
             { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },

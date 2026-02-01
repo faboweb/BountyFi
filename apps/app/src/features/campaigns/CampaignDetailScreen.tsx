@@ -146,7 +146,6 @@ export function CampaignDetailScreen() {
             </View>
           </View>
         )}
-
         <View style={styles.footer}>
           <Button
             title="Start mission"
@@ -158,14 +157,14 @@ export function CampaignDetailScreen() {
             variant="primary"
             style={styles.ctaButton}
             disabled={!firstCheckpoint}
-          />
-          <TouchableOpacity
+          />          <TouchableOpacity
             style={styles.sponsorMissionButton}
             onPress={() => navigation.navigate('SponsorMission', { campaignId })}
           >
             <Text style={styles.sponsorMissionText}>Sponsor mission</Text>
             <Text style={styles.sponsorMissionHint}>Money, vouchers, snacks, drinks…</Text>
           </TouchableOpacity>
+
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -383,9 +382,6 @@ const styles = StyleSheet.create({
   footer: {
     marginTop: Spacing.xl,
   },
-  ctaButton: {
-    width: '100%',
-  },
   sponsorMissionButton: {
     marginTop: Spacing.md,
     paddingVertical: Spacing.md,
@@ -404,4 +400,8 @@ const styles = StyleSheet.create({
     color: Colors.textGray,
     marginTop: 2,
   },
+  ctaButton: {
+    width: '100%',
+  },
+
 });

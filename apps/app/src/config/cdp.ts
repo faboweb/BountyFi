@@ -8,7 +8,7 @@ export const CDP_CONFIG = {
   projectId,
   appName: 'BountyFi',
   ethereum: {
-    createOnLogin: 'eoa' as const, // EOA wallet on sign-in; use 'smart' for Smart Accounts
+    createOnLogin: 'smart' as const, // Smart Accounts required for paymaster and user operations
   },
   // Required for OAuth (Google, Apple, X) in React Native – deep link back to app
   nativeOAuthCallback: 'bountyfi://oauth-callback',

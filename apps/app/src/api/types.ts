@@ -3,7 +3,7 @@
 export interface User {
   id: string;
   email: string;
-  wallet_address: string;
+  wallet_address: `0x${string}`;
   tickets: number;
   referral_code: string;
   referred_by?: string;
@@ -40,13 +40,15 @@ export interface Campaign {
   end_date: string;
   checkpoints: Checkpoint[];
   gestures: Gesture[];
-  status: 'active' | 'upcoming' | 'ended';
+  status: 'active' | 'upcoming' | 'ended' | 'pending_onchain';
   /** When set, enforces proof rules: uniserv_cleanup (before+after, min 1min, once); no_burn (one photo/day, 3mo) */
   quest_type?: QuestType;
   /** Prize chest: what you can win when redeeming tickets from this quest */
   prize_chest?: { label: string; emoji: string }[];
   /** Sponsors (companies, cafés, individuals) – shown under prizes to attract sponsors */
   sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
+  /** Transaction hash from blockchain submission */
+  tx_hash?: string;
 }
 
 export interface Checkpoint {
@@ -186,10 +188,12 @@ export interface CreateCampaignRequest {
   start_date: string; // ISO string
   end_date: string;   // ISO string
   checkpoints: Omit<Checkpoint, 'id'>[];
-  status?: 'active' | 'upcoming' | 'ended';
+  status?: 'active' | 'upcoming' | 'ended' | 'pending_onchain';
   quest_type?: QuestType;
   prize_chest?: { label: string; emoji: string }[];
   sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
+  onchain_id?: string;
+  tx_hash?: string;
 }
 
 export interface ReferralApplyRequest {

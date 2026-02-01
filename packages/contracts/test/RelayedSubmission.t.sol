@@ -47,7 +47,9 @@ contract RelayedSubmissionTest is Test {
     function testRelayedSubmissionFlow() public {
         // 1. Create Campaign
         vm.prank(owner);
-        bountyFi.createCampaign(BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80);
+        BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
+        prizes[0] = BountyFi.Prize("Prize", "gift");
+        bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 
         // 2. Relayer Submits Hash (User Identity Hidden)
@@ -82,7 +84,9 @@ contract RelayedSubmissionTest is Test {
     function testGoldenTaskFlow() public {
         // 1. Create Campaign
         vm.prank(owner);
-        bountyFi.createCampaign(BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80);
+        BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
+        prizes[0] = BountyFi.Prize("Prize", "gift");
+        bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 
         // 2. Relayer Submits Golden Task

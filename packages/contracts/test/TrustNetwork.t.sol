@@ -53,7 +53,9 @@ contract TrustNetworkTest is Test {
     function testTrustPath() public {
         // 1. Create Campaign
         vm.prank(owner);
-        bountyFi.createCampaign(BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80);
+        BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
+        prizes[0] = BountyFi.Prize("Prize", "gift");
+        bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 
         // 2. Setup Relationships
@@ -91,7 +93,9 @@ contract TrustNetworkTest is Test {
         // Let's loop 10 submissions.
         
         vm.prank(owner);
-        bountyFi.createCampaign(BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80);
+        BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
+        prizes[0] = BountyFi.Prize("Prize", "gift");
+        bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 
         vm.prank(userA);
@@ -120,7 +124,9 @@ contract TrustNetworkTest is Test {
         vm.startPrank(owner);
         tickets.grantRole(tickets.MINTER_ROLE(), owner);
         tickets.mintReward(userA, 0, 5, bytes32(0)); // A has 5 tickets in campaign 0
-        bountyFi.createCampaign(BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80);
+        BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
+        prizes[0] = BountyFi.Prize("Prize", "gift");
+        bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         vm.stopPrank();
         
         assertEq(tickets.balanceOf(userA, 0), 5);
@@ -141,7 +147,9 @@ contract TrustNetworkTest is Test {
     }
     function testValidationQueue() public {
         vm.prank(owner);
-        bountyFi.createCampaign(BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80);
+        BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
+        prizes[0] = BountyFi.Prize("Prize", "gift");
+        bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 
         // Setup: A trusts B. C is neutral.
