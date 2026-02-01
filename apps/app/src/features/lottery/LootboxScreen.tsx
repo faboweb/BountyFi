@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   SafeAreaView,
+  ScrollView,
 } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '../../theme/theme';
@@ -16,31 +17,30 @@ import { useAuth } from '../../auth/context';
 
 export function LootboxScreen() {
   const queryClient = useQueryClient();
-  const { signMessage, user, refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [isOpening, setIsOpening] = useState(false);
+  const [lastRequestId, setLastRequestId] = useState<string | null>(null);
 
-  // Use tickets from user profile instead of on-chain balance for consistency/speed
-  const balance = user?.tickets || 0;
-  const balanceLoading = false; // User is loaded with auth context
+  const tickets = user?.tickets ?? 0;
+  const diamonds = user?.diamonds ?? 0;
+  const canOpen = tickets >= 1 || diamonds >= 10;
+  const balanceLoading = false;
+
+  const { data: result, isLoading: resultLoading, refetch: refetchResult } = useQuery({
+    queryKey: ['lootboxResult', lastRequestId],
+    queryFn: () => (lastRequestId ? api.lottery.getResult(lastRequestId) : Promise.resolve(null)),
+    enabled: !!lastRequestId,
+  });
 
   const handleOpenLootbox = async () => {
     setIsOpening(true);
     try {
-      // 1. Sign intent
-      const message = JSON.stringify({
-         action: 'open_lootbox',
-         timestamp: Date.now() 
-      });
-      const signature = await signMessage(message);
-
-      // 2. Call Relayer
-      await api.lottery.open(signature, message);
-      
-      Alert.alert('Success', 'Lootbox requested! Your prize will appear once the VRF is fulfilled.');
-      
-      // 3. Refresh user to update ticket balance immediately
+      const res = await api.lottery.openOnChain();
+      setLastRequestId(res.requestId);
       await refreshUser();
-      queryClient.invalidateQueries({ queryKey: ['bountyBalance'] }); // Keep for legacy
+      queryClient.invalidateQueries({ queryKey: ['bountyBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['lootboxResult', res.requestId] });
+      Alert.alert('Success', `Request #${res.requestId}. Check back in a few seconds for your prize.`);
     } catch (error: any) {
       console.error(error);
       Alert.alert('Error', error.message || 'Failed to open lootbox');
@@ -49,40 +49,73 @@ export function LootboxScreen() {
     }
   };
 
+  const handleCheckResult = async () => {
+    if (!lastRequestId) return;
+    try {
+      await api.lottery.syncResult(lastRequestId);
+      await refetchResult();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to sync result');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>🎁 Monthly Lootbox</Text>
-        <Text style={styles.subtitle}>Spend 10 BOUNTY for a chance to win rare rewards!</Text>
+        <Text style={styles.subtitle}>Use 1 ticket or 10 diamonds for a chance to win rare rewards!</Text>
 
         <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Your Balance</Text>
-          <Text style={styles.balanceValue}>{balanceLoading ? '...' : `${Number(balance).toFixed(2)} BOUNTY`}</Text>
+          <Text style={styles.balanceLabel}>Your balance</Text>
+          <Text style={styles.balanceValue}>{balanceLoading ? '...' : `${tickets} ticket${tickets !== 1 ? 's' : ''} · ${diamonds} 💎`}</Text>
         </View>
 
-        <TouchableOpacity 
-          style={[styles.openButton, (isOpening || Number(balance) < 10) && styles.disabledButton]}
+        <TouchableOpacity
+          style={[styles.openButton, (isOpening || !canOpen) && styles.disabledButton]}
           onPress={handleOpenLootbox}
-          disabled={isOpening || Number(balance) < 10}
+          disabled={isOpening || !canOpen}
         >
           {isOpening ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Open Lootbox (10 BOUNTY)</Text>
+            <Text style={styles.buttonText}>Open Lootbox (1 ticket or 10 💎)</Text>
           )}
         </TouchableOpacity>
 
-        {Number(balance) < 10 && !balanceLoading && (
-          <Text style={styles.warning}>Need more tickets to open a box!</Text>
+        {!canOpen && !balanceLoading && (
+          <Text style={styles.warning}>Need 1 ticket or 10 diamonds to open a box!</Text>
         )}
-      </View>
+
+        {lastRequestId && (
+          <View style={styles.resultCard}>
+            <Text style={styles.resultTitle}>Last open</Text>
+            <Text style={styles.resultRequestId}>Request #{lastRequestId}</Text>
+            {resultLoading ? (
+              <Text style={styles.resultText}>Loading…</Text>
+            ) : result?.fulfilled ? (
+              <View>
+                <Text style={styles.prizeLabel}>
+                  {result.prize_label ? `You won: ${result.prize_label}` : 'No prize this time'}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.resultRow}>
+                <Text style={styles.resultText}>VRF pending — tap to refresh</Text>
+                <TouchableOpacity style={styles.checkButton} onPress={handleCheckResult}>
+                  <Text style={styles.checkButtonText}>Check result</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  content: { padding: Spacing.xl, alignItems: 'center' },
+  content: { padding: Spacing.xl, alignItems: 'center', paddingBottom: Spacing.xxl * 2 },
   title: { ...Typography.heading, fontSize: 32, marginBottom: Spacing.sm },
   subtitle: { ...Typography.body, textAlign: 'center', color: Colors.textGray, marginBottom: Spacing.xl },
   balanceCard: { backgroundColor: '#fff', padding: Spacing.xl, borderRadius: BorderRadius.lg, ...Shadows.card, width: '100%', alignItems: 'center', marginBottom: Spacing.xxl },
@@ -91,5 +124,13 @@ const styles = StyleSheet.create({
   openButton: { backgroundColor: Colors.primaryBright, paddingVertical: Spacing.lg, paddingHorizontal: Spacing.xxl, borderRadius: BorderRadius.full, width: '100%', alignItems: 'center', ...Shadows.sm },
   disabledButton: { backgroundColor: '#CBD5E1' },
   buttonText: { color: '#fff', fontWeight: '800', fontSize: 18 },
-  warning: { marginTop: Spacing.lg, color: Colors.error, fontWeight: '600' }
+  warning: { marginTop: Spacing.lg, color: Colors.error, fontWeight: '600' },
+  resultCard: { backgroundColor: '#fff', padding: Spacing.xl, borderRadius: BorderRadius.lg, ...Shadows.card, width: '100%', marginTop: Spacing.xl, alignItems: 'center' },
+  resultTitle: { ...Typography.caption, color: Colors.textGray, marginBottom: 4 },
+  resultRequestId: { ...Typography.body, marginBottom: Spacing.sm },
+  resultText: { ...Typography.body, color: Colors.textGray },
+  resultRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flexWrap: 'wrap', justifyContent: 'center' },
+  prizeLabel: { ...Typography.heading, fontSize: 20, color: Colors.success },
+  checkButton: { backgroundColor: Colors.primaryBright, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg, borderRadius: BorderRadius.full },
+  checkButtonText: { color: '#fff', fontWeight: '600' },
 });

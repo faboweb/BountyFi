@@ -48,7 +48,7 @@ contract RelayedSubmissionTest is Test {
         // 1. Create Campaign
         vm.prank(owner);
         BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
-        prizes[0] = BountyFi.Prize("Prize", "gift");
+        prizes[0] = BountyFi.Prize("Prize", "", "Sponsor", bytes32(0), 0, 0);
         bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 
@@ -85,7 +85,7 @@ contract RelayedSubmissionTest is Test {
         // 1. Create Campaign
         vm.prank(owner);
         BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
-        prizes[0] = BountyFi.Prize("Prize", "gift");
+        prizes[0] = BountyFi.Prize("Prize", "", "Sponsor", bytes32(0), 0, 0);
         bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 

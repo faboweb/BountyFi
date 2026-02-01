@@ -213,9 +213,9 @@ export function StartCampaignScreen() {
         }
       ],
       prize_chest: [
-        { label: 'Free coffee', emoji: '☕' },
-        { label: 'T-shirt', emoji: '👕' },
-        { label: 'Gift card', emoji: '🎁' },
+        { label: 'Free coffee', image: '', sponsor: '' },
+        { label: 'T-shirt', image: '', sponsor: '' },
+        { label: 'Gift card', image: '', sponsor: '' },
       ],
     };
 
@@ -235,7 +235,7 @@ export function StartCampaignScreen() {
 
       const BOUNTYFI_ADDR = CHAIN_CONFIG.BOUNTYFI_ADDRESS;
       const iface = new ethers.Interface([
-        "function createCampaign(string _title, uint8 _type, uint256 _reward, uint256 _stake, uint256 _radius, uint256 _aiThreshold, tuple(string label, string emoji)[] _prizes) external",
+        "function createCampaign(string _title, uint8 _type, uint256 _reward, uint256 _stake, uint256 _radius, uint256 _aiThreshold, tuple(string label, string image, string sponsor, bytes32 metadataHash, uint256 amount, uint256 value)[] _prizes) external",
         "event CampaignCreated(uint256 indexed campaignId, string title, uint8 campaignType, uint256 rewardAmount, uint256 prizeCount)"
       ]);
 
@@ -245,8 +245,16 @@ export function StartCampaignScreen() {
       const radius = 50;
       const aiThreshold = 80;
 
-      // Encode prizes for contract
-      const prizes = pendingCampaignData.prize_chest.map((p: any) => [p.label, p.emoji]);
+      // Encode prizes for contract (label, image, sponsor, metadataHash, amount, value)
+      const zeroHash = ethers.ZeroHash;
+      const prizes = pendingCampaignData.prize_chest.map((p: any) => [
+        p.label,
+        p.image ?? '',
+        p.sponsor ?? '',
+        p.metadataHash ?? zeroHash,
+        BigInt(p.amount ?? 0),
+        BigInt(p.value ?? 0),
+      ]);
 
       const txData = iface.encodeFunctionData("createCampaign", [
         pendingCampaignData.title,

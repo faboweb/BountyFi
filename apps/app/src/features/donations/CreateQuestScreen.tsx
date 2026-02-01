@@ -34,7 +34,7 @@ const DEFAULT_REGION = { latitude: 18.7883, longitude: 98.9853, latitudeDelta: 0
 const TIMEFRAME_DAYS = 90;
 
 const BOUNTYFI_ABI = [
-  "function createCampaign(string _title, uint8 _type, uint256 _reward, uint256 _stake, uint256 _radius, uint256 _aiThreshold, tuple(string label, string emoji)[] _prizes) external",
+  "function createCampaign(string _title, uint8 _type, uint256 _reward, uint256 _stake, uint256 _radius, uint256 _aiThreshold, tuple(string label, string image, string sponsor, bytes32 metadataHash, uint256 amount, uint256 value)[] _prizes) external",
   "event CampaignCreated(uint256 indexed campaignId, string title, uint8 campaignType, uint256 rewardAmount, uint256 prizeCount)",
 ];
 
@@ -321,8 +321,15 @@ export function CreateQuestScreen() {
       // Prepare transaction data
       const iface = new ethers.Interface(BOUNTYFI_ABI);
 
-      // Map prizes for contract (empty array for basic quest)
-      const prizes = pendingCampaignData.prize_chest.map((p: any) => [p.label, p.emoji]);
+      const zeroHash = ethers.ZeroHash;
+      const prizes = pendingCampaignData.prize_chest.map((p: any) => [
+        p.label,
+        p.image ?? '',
+        p.sponsor ?? '',
+        p.metadataHash ?? zeroHash,
+        BigInt(p.amount ?? 0),
+        BigInt(p.value ?? 0),
+      ]);
 
       // Encode contract call
       const txData = iface.encodeFunctionData('createCampaign', [

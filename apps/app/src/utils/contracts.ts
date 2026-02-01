@@ -17,7 +17,10 @@ export const BOUNTYTOKEN_ABI = [
 
 export const LOOTBOX_ABI = [
     "function openLootbox() external returns (uint256 requestId)",
-    "event LootboxRequested(uint256 indexed requestId, address indexed user)"
+    "function openCampaignLootbox(uint256 campaignId) external returns (uint256 requestId)",
+    "function requests(uint256 requestId) view returns (address user, uint256 campaignId, bool fulfilled, uint256 prizeTier)",
+    "event LootboxRequested(uint256 indexed requestId, address indexed user, uint256 campaignId)",
+    "event LootboxOpened(uint256 indexed requestId, address indexed user, uint256 prizeTier)"
 ];
 
 export async function getProvider() {

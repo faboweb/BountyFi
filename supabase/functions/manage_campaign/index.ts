@@ -84,6 +84,45 @@ serve(async (req) => {
             return new Response(JSON.stringify(campaign), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
         }
 
+        if (action === 'ADD_PRIZE') {
+            const { campaign_id, donator_id, donator_address, metadata_hash, amount, value, eip712_metadata, label, image, sponsor } = data
+            if (!campaign_id || !metadata_hash) throw new Error("campaign_id and metadata_hash are required")
+            const row = {
+                campaign_id,
+                donator_id: donator_id ?? null,
+                donator_address: donator_address ?? null,
+                metadata_hash,
+                amount: amount ?? 0,
+                value: value ?? 0,
+                eip712_metadata: eip712_metadata ?? null,
+                label: label ?? null,
+                image: image ?? null,
+                sponsor: sponsor ?? null,
+            }
+            const { data: prize, error } = await supabaseClient
+                .from('campaign_prizes')
+                .insert(row)
+                .select()
+                .single()
+            if (error) throw error
+            return new Response(JSON.stringify(prize), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
+        }
+
+        if (action === 'CONFIRM_PRIZE') {
+            const { campaign_id, metadata_hash, tx_hash } = data
+            if (!campaign_id || !metadata_hash || !tx_hash) throw new Error("campaign_id, metadata_hash and tx_hash are required")
+            const { data: prize, error } = await supabaseClient
+                .from('campaign_prizes')
+                .update({ tx_hash, updated_at: new Date().toISOString() })
+                .eq('campaign_id', campaign_id)
+                .eq('metadata_hash', metadata_hash)
+                .is('tx_hash', null)
+                .select()
+                .maybeSingle()
+            if (error) throw error
+            return new Response(JSON.stringify(prize ?? { updated: 0 }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
+        }
+
         if (action === 'ADD_DONATION') {
             const { campaign_id, donator_id, amount, currency, tx_hash } = data
 

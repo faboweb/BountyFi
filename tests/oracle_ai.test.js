@@ -161,7 +161,11 @@ async function runTest() {
     
     // 3. Verify Result
     if (!funcData.success) {
-        console.error("   Oracle returned failure:", funcData.error);
+        const err = funcData.error || '';
+        if (err.includes('0xe2517d3f') || err.includes('AccessControl') || err.includes('reverted')) {
+            console.warn("   ⚠️  Oracle revert (ORACLE_ROLE?). Run: scripts/grant_oracle_role.sh");
+        }
+        console.error("   Oracle returned failure:", err.slice(0, 80));
         return;
     }
 

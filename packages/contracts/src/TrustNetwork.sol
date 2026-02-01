@@ -23,12 +23,27 @@ contract TrustNetwork is AccessControl {
     event TrustConnectionCreated(address indexed truster, address indexed trustee);
     event ReferrerSet(address indexed user, address indexed referrer);
     event DiamondsEarned(address indexed user, uint256 amount);
+    event DiamondsSpent(address indexed user, uint256 amount);
     event TicketRewardMinted(address indexed user, uint256 amount);
     event TicketBurned(address indexed user, uint256 amount);
+
+    address public lootbox;
 
     constructor(address _tickets) {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
         tickets = Tickets(_tickets);
+    }
+
+    function setLootbox(address _lootbox) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        lootbox = _lootbox;
+    }
+
+    /// @notice Spend diamonds (e.g. to open lootbox). Only callable by Lootbox contract.
+    function spendDiamonds(address user, uint256 amount) external {
+        require(msg.sender == lootbox, "Only Lootbox");
+        require(diamonds[user] >= amount, "Insufficient diamonds");
+        diamonds[user] -= amount;
+        emit DiamondsSpent(user, amount);
     }
 
     // --- User Actions ---

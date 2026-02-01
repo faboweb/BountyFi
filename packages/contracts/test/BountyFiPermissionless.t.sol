@@ -43,8 +43,8 @@ contract BountyFiPermissionlessTest is Test {
 
         // Create prizes
         BountyFi.Prize[] memory prizes = new BountyFi.Prize[](2);
-        prizes[0] = BountyFi.Prize("Gold", "trophy");
-        prizes[1] = BountyFi.Prize("Silver", "medal");
+        prizes[0] = BountyFi.Prize("Gold", "", "SponsorA", bytes32(0), 0, 0);
+        prizes[1] = BountyFi.Prize("Silver", "", "SponsorB", bytes32(0), 0, 0);
 
         // This should succeed now that createCampaign is permissionless
         bountyFi.createCampaign(
@@ -82,16 +82,17 @@ contract BountyFiPermissionlessTest is Test {
         BountyFi.Prize[] memory storedPrizes = bountyFi.getCampaignPrizes(0);
         assertEq(storedPrizes.length, 2);
         assertEq(storedPrizes[0].label, "Gold");
-        assertEq(storedPrizes[0].emoji, "trophy");
+        assertEq(storedPrizes[0].image, "");
+        assertEq(storedPrizes[0].sponsor, "SponsorA");
         assertEq(storedPrizes[1].label, "Silver");
-        assertEq(storedPrizes[1].emoji, "medal");
+        assertEq(storedPrizes[1].sponsor, "SponsorB");
     }
 
     function test_MultipleUsersCanCreateCampaigns() public {
         // First user creates a campaign
         vm.prank(randomUser);
         BountyFi.Prize[] memory prizes1 = new BountyFi.Prize[](1);
-        prizes1[0] = BountyFi.Prize("Prize1", "gift");
+        prizes1[0] = BountyFi.Prize("Prize1", "", "Sponsor1", bytes32(0), 0, 0);
         
         bountyFi.createCampaign(
             "User1 Campaign",
@@ -106,7 +107,7 @@ contract BountyFiPermissionlessTest is Test {
         // Second user creates a campaign
         vm.prank(anotherUser);
         BountyFi.Prize[] memory prizes2 = new BountyFi.Prize[](1);
-        prizes2[0] = BountyFi.Prize("Prize2", "party");
+        prizes2[0] = BountyFi.Prize("Prize2", "", "Sponsor2", bytes32(0), 0, 0);
         
         bountyFi.createCampaign(
             "User2 Campaign",
@@ -131,7 +132,7 @@ contract BountyFiPermissionlessTest is Test {
         vm.prank(randomUser);
         
         BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
-        prizes[0] = BountyFi.Prize("Test", "check");
+        prizes[0] = BountyFi.Prize("Test", "", "TestSponsor", bytes32(0), 0, 0);
 
         // Expect the CampaignCreated event
         vm.expectEmit(true, false, false, true);

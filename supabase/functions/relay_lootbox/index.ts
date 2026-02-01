@@ -33,38 +33,45 @@ serve(async (req) => {
         // We check the 'tickets' table or 'users' profile if it has a tickets cached count.
         // For MVP, we'll check the sum of 'amount' in 'tickets' table for that user.
 
-        // Match user by wallet_address (assuming it's in public.users or metadata)
-        // If not found, we can't proceed.
-        // Match user by wallet_address
+        // Match user by wallet_address; need 1 ticket OR 10 diamonds to open
         const { data: userData, error: userError } = await supabaseClient
             .from('users')
-            .select('wallet_address, tickets')
+            .select('wallet_address, tickets, diamonds')
             .eq('wallet_address', publicAddress.toLowerCase())
             .maybeSingle();
 
         if (userError) throw userError;
         if (!userData) throw new Error(`User not found for address ${publicAddress}`);
 
-        const currentTickets = userData.tickets ?? 0;
-        if (currentTickets < 10) {
-            throw new Error(`Insufficient tickets. Have ${currentTickets}, need 10.`);
+        const tickets = Number(userData.tickets ?? 0);
+        const diamonds = Number(userData.diamonds ?? 0);
+        const useTickets = tickets >= 1;
+        const useDiamonds = !useTickets && diamonds >= 10;
+
+        if (!useTickets && !useDiamonds) {
+            throw new Error('Need 1 ticket or 10 diamonds to open the lootbox.');
         }
 
-        // 3. Deduct Tickets in DB
-        const { error: updateError } = await supabaseClient
-            .from('users')
-            .update({ tickets: currentTickets - 10 })
-            .eq('wallet_address', publicAddress.toLowerCase());
-
-        if (updateError) throw updateError;
-
-        // Also log the transaction in 'tickets' table
-        await supabaseClient.from('tickets').insert({
-            user_address: publicAddress.toLowerCase(),
-            amount: -10,
-            source: 'lootbox_open',
-            description: 'Opened Monthly Lootbox'
-        });
+        // 3. Deduct payment in DB: 1 ticket or 10 diamonds
+        if (useTickets) {
+            const { error: updateError } = await supabaseClient
+                .from('users')
+                .update({ tickets: tickets - 1 })
+                .eq('wallet_address', publicAddress.toLowerCase());
+            if (updateError) throw updateError;
+            await supabaseClient.from('tickets').insert({
+                user_address: publicAddress.toLowerCase(),
+                amount: -1,
+                source: 'lootbox_open',
+                description: 'Opened Monthly Lootbox (1 ticket)'
+            });
+        } else {
+            const { error: updateError } = await supabaseClient
+                .from('users')
+                .update({ diamonds: diamonds - 10 })
+                .eq('wallet_address', publicAddress.toLowerCase());
+            if (updateError) throw updateError;
+        }
 
         // 4. Submit to Chain
         const lootboxAddress = Deno.env.get('LOOTBOX_ADDRESS');

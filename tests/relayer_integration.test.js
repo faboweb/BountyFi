@@ -63,34 +63,61 @@ async function runTests() {
     const campaignId = campData.id;
     console.log(`✅ Using Campaign: ${campaignId}`);
 
-    // --- TEST 2: Relay Submission ---
-    console.log('\n📝 Testing relay_submission...');
-    const submissionMsg = "BountyFi Submission"; // Simple string as used in function logic
-    const submissionSig = await wallet.signMessage(submissionMsg);
+    // --- TEST 2: Relay Submission (EIP-712) ---
+    console.log('\n📝 Testing relay_submission (EIP-712)...');
+    const { data: campWithOnchain } = await supabase
+        .from('campaigns')
+        .select('id, onchain_id')
+        .eq('id', campaignId)
+        .single();
 
-    const { data: subResult, error: subError } = await supabase.functions.invoke('relay_submission', {
-        body: {
-            campaign_id: campaignId,
-            photo_urls: [`https://test.com/before_${Date.now()}.jpg`, `https://test.com/after_${Date.now()}.jpg`],
-            gps_lat: 137563,
-            gps_lng: 100501,
-            signature: submissionSig,
-            public_address: wallet.address
-        }
-    });
-
-    if (subError) {
-        console.error('❌ relay_submission failed:', subError);
-        if (subError.context) {
-            // Note: supabase-js 2.x might wrap the error in context
-            try {
-                const reader = subError.context.body.getReader();
-                const { value } = await reader.read();
-                console.error('   Error Body:', new TextDecoder().decode(value));
-            } catch (e) {}
-        }
+    if (!campWithOnchain?.onchain_id) {
+        console.log('   ⏭️  Skipped: campaign has no onchain_id');
     } else {
-        console.log('✅ relay_submission Success:', subResult);
+        const EIP712_DOMAIN = { name: 'BountyFi', version: '1', chainId: 84532, verifyingContract: '0x0000000000000000000000000000000000000000' };
+        const EIP712_TYPES = {
+            BountyFiSubmission: [
+                { name: 'submissionHash', type: 'bytes32' },
+                { name: 'recipient', type: 'address' },
+                { name: 'nonce', type: 'uint256' },
+            ],
+        };
+        const photoUrls = [`https://test.com/before_${Date.now()}.jpg`, `https://test.com/after_${Date.now()}.jpg`];
+        const gpsLat = 137563;
+        const gpsLng = 100501;
+        const abiCoder = new ethers.AbiCoder();
+        const submissionHash = ethers.keccak256(abiCoder.encode(
+            ['uint256', 'string[]', 'int256', 'int256'],
+            [campWithOnchain.onchain_id, photoUrls, gpsLat, gpsLng]
+        ));
+        const nonce = Date.now();
+        const eip712_message = { submissionHash, recipient: wallet.address, nonce: nonce.toString() };
+        const submissionSig = await wallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, eip712_message);
+
+        const { data: subResult, error: subError } = await supabase.functions.invoke('relay_submission', {
+            body: {
+                campaign_id: campaignId,
+                photo_urls: photoUrls,
+                gps_lat: gpsLat,
+                gps_lng: gpsLng,
+                signature: submissionSig,
+                public_address: wallet.address,
+                eip712_message,
+            },
+        });
+
+        if (subError) {
+            console.error('❌ relay_submission failed:', subError);
+            if (subError.context) {
+                try {
+                    const reader = subError.context.body.getReader();
+                    const { value } = await reader.read();
+                    console.error('   Error Body:', new TextDecoder().decode(value));
+                } catch (e) {}
+            }
+        } else {
+            console.log('✅ relay_submission Success:', subResult);
+        }
     }
 
     // --- TEST 3: Relay Lootbox ---

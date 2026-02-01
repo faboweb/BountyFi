@@ -2,6 +2,7 @@ import * as React from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   SafeAreaView,
@@ -114,10 +115,15 @@ export function CampaignDetailScreen() {
           <Text style={styles.prizeChestTitle}>🎁 Prize chest</Text>
           {campaign.prize_chest && campaign.prize_chest.length > 0 ? (
             <View style={styles.prizeList}>
-              {campaign.prize_chest.map((prize: { label: string; emoji: string }, index: number) => (
+              {campaign.prize_chest.map((prize: { label: string; image?: string; sponsor?: string }, index: number) => (
                 <View key={index} style={styles.prizeRow}>
-                  <Text style={styles.prizeEmoji}>{prize.emoji}</Text>
-                  <Text style={styles.prizeLabel}>{prize.label}</Text>
+                  {prize.image ? (
+                    <Image source={{ uri: prize.image }} style={styles.prizeImage} />
+                  ) : null}
+                  <View>
+                    <Text style={styles.prizeLabel}>{prize.label}</Text>
+                    {prize.sponsor ? <Text style={styles.prizeSponsor}>by {prize.sponsor}</Text> : null}
+                  </View>
                 </View>
               ))}
             </View>
@@ -324,14 +330,21 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.creamDark,
   },
-  prizeEmoji: {
-    fontSize: 22,
+  prizeImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 8,
     marginRight: 12,
   },
   prizeLabel: {
     fontSize: 16,
     color: Colors.ivoryBlueDark,
     fontWeight: '600',
+  },
+  prizeSponsor: {
+    fontSize: 12,
+    color: Colors.textGray,
+    marginTop: 2,
   },
   prizeChestFallback: {
     fontSize: 14,

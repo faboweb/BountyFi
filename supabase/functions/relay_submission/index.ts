@@ -34,11 +34,14 @@ serve(async (req) => {
         const contractCampaignId = campaign?.onchain_id;
         if (contractCampaignId == null) throw new Error("Campaign not yet on chain");
 
-        // 2. Recompute submission hash (must match client)
+        // 2. Recompute submission hash (must match client - GPS scaled by 1e6)
+        const GPS_SCALE = 1e6;
+        const latScaled = BigInt(Math.floor(gps_lat * GPS_SCALE));
+        const lngScaled = BigInt(Math.floor(gps_lng * GPS_SCALE));
         const abiCoder = new ethers.AbiCoder();
         const submissionHash = ethers.keccak256(abiCoder.encode(
             ["uint256", "string[]", "int256", "int256"],
-            [contractCampaignId, photo_urls, gps_lat, gps_lng]
+            [contractCampaignId, photo_urls, latScaled, lngScaled]
         ));
 
         if (submissionHash !== eip712_message.submissionHash) {

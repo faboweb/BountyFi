@@ -54,7 +54,7 @@ contract TrustNetworkTest is Test {
         // 1. Create Campaign
         vm.prank(owner);
         BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
-        prizes[0] = BountyFi.Prize("Prize", "gift");
+        prizes[0] = BountyFi.Prize("Prize", "", "Sponsor", bytes32(0), 0, 0);
         bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 
@@ -94,7 +94,7 @@ contract TrustNetworkTest is Test {
         
         vm.prank(owner);
         BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
-        prizes[0] = BountyFi.Prize("Prize", "gift");
+        prizes[0] = BountyFi.Prize("Prize", "", "Sponsor", bytes32(0), 0, 0);
         bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 
@@ -125,7 +125,7 @@ contract TrustNetworkTest is Test {
         tickets.grantRole(tickets.MINTER_ROLE(), owner);
         tickets.mintReward(userA, 0, 5, bytes32(0)); // A has 5 tickets in campaign 0
         BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
-        prizes[0] = BountyFi.Prize("Prize", "gift");
+        prizes[0] = BountyFi.Prize("Prize", "", "Sponsor", bytes32(0), 0, 0);
         bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         vm.stopPrank();
         
@@ -148,7 +148,7 @@ contract TrustNetworkTest is Test {
     function testValidationQueue() public {
         vm.prank(owner);
         BountyFi.Prize[] memory prizes = new BountyFi.Prize[](1);
-        prizes[0] = BountyFi.Prize("Prize", "gift");
+        prizes[0] = BountyFi.Prize("Prize", "", "Sponsor", bytes32(0), 0, 0);
         bountyFi.createCampaign("Test Campaign", BountyFi.CampaignType.SINGLE_PHOTO, 100 ether, 0, 100, 80, prizes);
         uint256 campaignId = 0;
 

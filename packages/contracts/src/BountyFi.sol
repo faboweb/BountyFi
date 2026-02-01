@@ -15,7 +15,11 @@ contract BountyFi is AccessControl {
 
     struct Prize {
         string label;
-        string emoji;
+        string image;   // image URL or CID
+        string sponsor; // sponsor name or address
+        bytes32 metadataHash; // EIP-712 typed data hash of prize metadata
+        uint256 amount;
+        uint256 value;
     }
 
     struct Campaign {
@@ -54,6 +58,7 @@ contract BountyFi is AccessControl {
     mapping(uint256 => mapping(address => bool)) public hasVoted;
 
     event CampaignCreated(uint256 indexed campaignId, string title, CampaignType campaignType, uint256 rewardAmount, uint256 prizeCount);
+    event PrizeAdded(uint256 indexed campaignId, uint256 indexed prizeIndex, bytes32 metadataHash, uint256 amount, uint256 value);
     event SubmissionCreated(uint256 indexed submissionId, uint256 indexed campaignId, address indexed submitter, bytes32 submissionHash);
     event AIScoreSubmitted(uint256 indexed submissionId, uint256 confidence);
     event Voted(uint256 indexed submissionId, address indexed juror, bool approve);
@@ -78,7 +83,7 @@ contract BountyFi is AccessControl {
     ) external {
         campaigns[nextCampaignId] = Campaign(_title, _type, _reward, _stake, _radius, _aiThreshold, true);
 
-        // Store prizes
+        // Store prizes (legacy: metadataHash/amount/value can be zero)
         for (uint256 i = 0; i < _prizes.length; i++) {
             campaignPrizes[nextCampaignId].push(_prizes[i]);
         }
@@ -87,8 +92,23 @@ contract BountyFi is AccessControl {
         nextCampaignId++;
     }
 
+    /// @notice Add a prize to an existing campaign. Donator stores metadata in DB first, then calls this with the same hash/amount/value.
+    function addPrize(uint256 _campaignId, Prize memory _prize) external {
+        require(_campaignId < nextCampaignId, "Invalid campaign");
+        require(campaigns[_campaignId].active, "Campaign not active");
+        campaignPrizes[_campaignId].push(_prize);
+        uint256 index = campaignPrizes[_campaignId].length - 1;
+        emit PrizeAdded(_campaignId, index, _prize.metadataHash, _prize.amount, _prize.value);
+    }
+
     function getCampaignPrizes(uint256 _campaignId) external view returns (Prize[] memory) {
         return campaignPrizes[_campaignId];
+    }
+
+    /// @notice True when campaign is over (inactive). Used by Lootbox for campaign lootbox opens.
+    function isCampaignEnded(uint256 _campaignId) external view returns (bool) {
+        require(_campaignId < nextCampaignId, "Invalid campaign");
+        return !campaigns[_campaignId].active;
     }
 
     // Pending Submissions Tracking

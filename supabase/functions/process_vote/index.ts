@@ -113,6 +113,7 @@ serve(async (req) => {
         }
 
         // 4. Update Validator Stats (Regular)
+        // validators table has user_id as PK; wallet_address was added later. Only update if a row exists (user-linked validator).
         const { data: validator } = await supabaseClient
             .from('validators')
             .select('validations_today, total_validations, tickets_earned')
@@ -122,7 +123,6 @@ serve(async (req) => {
         let newTotal = 1
         let newToday = 1
 
-        // Upsert validator stats
         if (validator) {
             newTotal = (validator.total_validations || 0) + 1
             newToday = (validator.validations_today || 0) + 1
@@ -134,15 +134,8 @@ serve(async (req) => {
                     total_validations: newTotal
                 })
                 .eq('wallet_address', validator_address)
-        } else {
-            await supabaseClient
-                .from('validators')
-                .insert({
-                    wallet_address: validator_address,
-                    validations_today: 1,
-                    total_validations: 1
-                })
         }
+        // Else: wallet-only validator (no row in validators). Vote is still recorded; stats are skipped until they link a user.
 
         // 4. Milestone Reward: 1 ticket for every 10 validations
         if (newTotal % 10 === 0) {

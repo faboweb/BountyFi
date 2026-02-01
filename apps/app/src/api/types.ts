@@ -44,7 +44,7 @@ export interface Campaign {
   /** When set, enforces proof rules: uniserv_cleanup (before+after, min 1min, once); no_burn (one photo/day, 3mo) */
   quest_type?: QuestType;
   /** Prize chest: what you can win when redeeming tickets from this quest */
-  prize_chest?: { label: string; emoji: string; metadataHash?: string; amount?: number | string; value?: number | string }[];
+  prize_chest?: { label: string; image?: string; sponsor?: string; metadataHash?: string; amount?: number | string; value?: number | string }[];
   /** Sponsors (companies, cafés, individuals) – shown under prizes to attract sponsors */
   sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
   /** Transaction hash from blockchain submission */
@@ -137,6 +137,19 @@ export interface CampaignLootboxPullResult {
   } | null;
 }
 
+/** Indexed lootbox open from chain (lootbox_opens table). */
+export interface LootboxOpenResult {
+  request_id: string;
+  user_address: string;
+  campaign_id: string | null;
+  onchain_campaign_id: string | null;
+  prize_tier: number;
+  prize_label: string | null;
+  fulfilled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AuthResponse {
   token: string;
   wallet_address: string;
@@ -205,7 +218,7 @@ export interface CreateCampaignRequest {
   checkpoints: Omit<Checkpoint, 'id'>[];
   status?: 'active' | 'upcoming' | 'ended' | 'pending_onchain';
   quest_type?: QuestType;
-  prize_chest?: { label: string; emoji: string; metadataHash?: string; amount?: number | string; value?: number | string }[];
+  prize_chest?: { label: string; image?: string; sponsor?: string; metadataHash?: string; amount?: number | string; value?: number | string }[];
   sponsors?: { name: string; type?: 'company' | 'cafe' | 'individual'; maps_url?: string }[];
   onchain_id?: string;
   tx_hash?: string;

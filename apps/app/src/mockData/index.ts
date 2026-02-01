@@ -69,9 +69,9 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     ],
     gestures: [],
     prize_chest: [
-      { label: 'Snack', emoji: '🍪' },
-      { label: 'Smoothie', emoji: '🥤' },
-      { label: '50 baht', emoji: '💵' },
+      { label: 'Snack', image: '', sponsor: 'Green Farm Co.' },
+      { label: 'Smoothie', image: '', sponsor: '' },
+      { label: '50 baht', image: '', sponsor: '' },
     ],
     sponsors: [
       { name: 'Green Farm Co.', type: 'company' },
@@ -145,9 +145,9 @@ export const MOCK_CAMPAIGNS: Campaign[] = [
     ],
     gestures: [],
     prize_chest: [
-      { label: 'Reusable tote', emoji: '🛍️' },
-      { label: 'Coffee', emoji: '☕' },
-      { label: '50 baht', emoji: '💵' },
+      { label: 'Reusable tote', image: '', sponsor: '' },
+      { label: 'Coffee', image: '', sponsor: '' },
+      { label: '50 baht', image: '', sponsor: '' },
     ],
     sponsors: [
       { name: 'Ristr8to', type: 'cafe', maps_url: 'https://www.google.com/maps/search/Ristr8to+Chiang+Mai' },

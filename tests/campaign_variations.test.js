@@ -66,6 +66,8 @@ async function runTest() {
         console.error("   ❌ Failed Type 1:", e.message);
     }
 
+    await new Promise(r => setTimeout(r, 3000));
+
     // ---------------------------------------------------------
     // TEST 2: TYPE 2 (CHECKIN_SELFIE)
     // ---------------------------------------------------------

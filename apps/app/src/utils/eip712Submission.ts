@@ -8,8 +8,12 @@ import { ethers } from 'ethers';
 /** Base Sepolia chainId - must match deployment */
 export const BOUNTYFI_CHAIN_ID = 84532;
 
+/** Scale factor for GPS (6 decimal places) - app and relay must match */
+const GPS_SCALE = 1e6;
+
 /**
  * Compute submission hash - MUST match relay_submission formula exactly.
+ * GPS is encoded as scaled int256: floor(lat * 1e6), floor(lng * 1e6)
  */
 export function computeSubmissionHash(
   contractCampaignId: number,
@@ -18,10 +22,12 @@ export function computeSubmissionHash(
   gpsLng: number
 ): string {
   const abiCoder = new ethers.AbiCoder();
+  const latScaled = BigInt(Math.floor(gpsLat * GPS_SCALE));
+  const lngScaled = BigInt(Math.floor(gpsLng * GPS_SCALE));
   return ethers.keccak256(
     abiCoder.encode(
       ['uint256', 'string[]', 'int256', 'int256'],
-      [contractCampaignId, photoUrls, gpsLat, gpsLng]
+      [contractCampaignId, photoUrls, latScaled, lngScaled]
     )
   );
 }

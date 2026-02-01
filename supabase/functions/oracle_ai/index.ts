@@ -85,13 +85,7 @@ serve(async (req) => {
             });
         }
 
-        // 3. Push to Chain
-        if (!RPC_URL || !ORACLE_PRIVATE_KEY || !BOUNTYFI_ADDRESS) {
-            // Redundant check but satisfies TS if needed
-            throw new Error("Missing Chain Config");
-        }
-
-        // Fetch onchain_id
+        // 3. Fetch onchain_id and push to chain
         const { data: subData, error: subError } = await supabaseClient
             .from('submissions')
             .select('onchain_id')
@@ -112,10 +106,10 @@ serve(async (req) => {
         await tx.wait()
         console.log(`Tx settled: ${tx.hash}`)
 
-        // 3. Save Verdict to DB
+        // 4. Save Verdict to DB
         await supabaseClient.from('ai_verdicts').upsert({
             submission_id,
-            model: "Llama-Vision-11b",
+            model: mock ? "mock" : "Llama-Vision-11b",
             confidence,
             results: { rawText },
             trace: { tx_hash: tx.hash }

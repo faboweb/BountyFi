@@ -2,11 +2,11 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { ethers } from "https://esm.sh/ethers@6.11.1"
 
-const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const privateKey = Deno.env.get('PRIVATE_KEY')!;
-const rpcUrl = Deno.env.get('RPC_URL')!;
-const contractAddress = Deno.env.get('BOUNTYFI_ADDRESS')!;
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+const privateKey = Deno.env.get('PRIVATE_KEY');
+const rpcUrl = Deno.env.get('RPC_URL');
+const contractAddress = Deno.env.get('BOUNTYFI_ADDRESS');
 
 // Mock Data Sets
 const VALID_PHOTOS = [
@@ -29,9 +29,11 @@ const INVALID_LOCS = [
 
 serve(async (req) => {
     try {
-        // 2. Secret Check
+        if (!supabaseUrl || !supabaseKey) {
+            return new Response(JSON.stringify({ success: false, error: "Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY" }), { headers: { "Content-Type": "application/json" } });
+        }
         if (!rpcUrl || !privateKey || !contractAddress) {
-            return new Response(JSON.stringify({ success: false, error: "Missing Secrets" }), { headers: { "Content-Type": "application/json" } });
+            return new Response(JSON.stringify({ success: false, error: "Missing RPC_URL, PRIVATE_KEY, or BOUNTYFI_ADDRESS" }), { headers: { "Content-Type": "application/json" } });
         }
 
         const supabase = createClient(supabaseUrl, supabaseKey);
@@ -64,16 +66,34 @@ serve(async (req) => {
 
         // Fetch a valid active campaign from DB, fallback to 0 (known active on chain)
         let targetCampaignId = 0;
-        const { data: campaign } = await supabase
+        let campaignId: string | null = null;
+        let campaign = null;
+        const { data: camp1, error: campErr } = await supabase
             .from('campaigns')
             .select('id, onchain_id')
             .eq('active', true)
+            .not('onchain_id', 'is', null)
             .limit(1)
-            .single();
-
-        if (campaign && campaign.onchain_id !== undefined) {
-            targetCampaignId = campaign.onchain_id;
+            .maybeSingle();
+        if (!campErr && camp1) campaign = camp1;
+        if (!campaign) {
+            const { data: camp2 } = await supabase
+                .from('campaigns')
+                .select('id, onchain_id')
+                .eq('status', 'active')
+                .not('onchain_id', 'is', null)
+                .limit(1)
+                .maybeSingle();
+            campaign = camp2;
         }
+
+        if (campErr) throw new Error(`Campaign fetch failed: ${campErr.message}`);
+        if (campaign) {
+            campaignId = campaign.id;
+            if (campaign.onchain_id != null) targetCampaignId = campaign.onchain_id;
+        }
+
+        if (!campaignId) throw new Error("No campaign with onchain_id found. Create and sync a campaign first.");
 
         console.log(`Injecting Golden Task: ${expectedOutcome} for Campaign ${targetCampaignId}`);
 
@@ -96,9 +116,21 @@ serve(async (req) => {
         const submissionHash = ethers.hexlify(ethers.randomBytes(32));
 
         // 3. Submit to Chain
-        const tx = await contract.submit(targetCampaignId, submissionHash);
+        let tx: { hash?: string; wait: () => Promise<any> };
+        try {
+            tx = await contract.submit(targetCampaignId, submissionHash);
+        } catch (chainErr: any) {
+            throw new Error(`Chain submit failed: ${chainErr?.message || chainErr}`);
+        }
+        if (!tx || typeof tx.wait !== 'function') throw new Error("Submit failed: no transaction returned");
         console.log("Tx Chain:", tx.hash);
-        const receipt = await tx.wait();
+        let receipt: any;
+        try {
+            receipt = await tx.wait();
+        } catch (waitErr: any) {
+            throw new Error(`Tx wait failed: ${waitErr?.message || waitErr}`);
+        }
+        if (!receipt || !receipt.logs) throw new Error("Transaction receipt missing logs");
 
         // Extract ID
         // Note: parsing logs in Edge Function can be flaky if RPC is slow or logs not indexed immediately.
@@ -119,7 +151,7 @@ serve(async (req) => {
         const { data: submission, error: subError } = await supabase
             .from('submissions')
             .insert({
-                campaign_id: campaign ? campaign.id : null, // Use DB UUID if available, else null? Or we need the UUID map.
+                campaign_id: campaignId,
                 // Wait, if we used 0 (chain ID), we need the corresponding DB UUID.
                 // The DB schema likely requires a UUID campaign_id.
                 // If we don't have one, we might fail constraint.
@@ -134,8 +166,9 @@ serve(async (req) => {
                 // If they are golden, they are meant for validators. Validators verify PENDING or JURY?
                 // Usually JURY_VOTING.
                 ai_confidence: 50,
-                // Removed is_golden, expected_outcome from public table
-                signature: 'GOLDEN_TASK_AGENT'
+                // Indistinguishable from relay submissions: use opaque hex (same format as EIP-712 sig)
+                // so validators cannot guess golden vs regular when all go through the agent.
+                signature: ethers.hexlify(ethers.randomBytes(65))
             })
             .select()
             .single();

@@ -99,8 +99,9 @@ serve(async (req) => {
             criticalFail = true
         }
 
-        // Check 2: Photo Count
-        const photoCount = submission.photo_urls ? submission.photo_urls.length : 0
+        // Check 2: Photo Count (support both photo_urls array and photo_url string)
+        const urls = submission.photo_urls ?? (submission.photo_url ? [submission.photo_url] : []);
+        const photoCount = Array.isArray(urls) ? urls.length : 0
         const photoPass = photoCount >= 1 // Minimum 1 for MVP
         const minPhotos = (campaign.campaign_type === 'TWO_PHOTO_CHANGE') ? 2 : 1;
 
@@ -114,12 +115,26 @@ serve(async (req) => {
 
         // Determine AI Confidence
         let aiConfidence = 0; // Default 0 (Reject)
+        const MOCK_AGENT = Deno.env.get('MOCK_AGENT') === 'true' ||
+            submission.test_mock_agent === true ||
+            (typeof payload !== 'undefined' && payload.test_mock_agent === true);
 
         // Decision Flow
         if (criticalFail) {
             trace.decision = "AUTO_REJECT"
             aiConfidence = 0;
         } else if (allChecksPass) {
+            // Mock Agent: skip AI + chain for tests
+            if (MOCK_AGENT) {
+                trace.decision = "AUTO_APPROVE";
+                aiConfidence = 95;
+                trace.steps.push({
+                    check: "ai_vision",
+                    status: "PASS",
+                    details: "Mock agent: skipped AI (test_mock_agent)"
+                });
+                trace.ai_vision = { model: "mock", decision: "AUTO_APPROVE", text: "Mock agent (tests only)" };
+            } else {
             // Milestone 3: AI Vision Pre-filtering
             try {
                 const aiResp = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/verify_semantic`, {
@@ -173,6 +188,7 @@ serve(async (req) => {
                 trace.decision = "AUTO_APPROVE"
                 aiConfidence = 95;
             }
+            } // end !MOCK_AGENT
         } else {
             trace.decision = "NEEDS_HUMAN_REVIEW" // Or Reject if photo count fail?
             // If verify checks fail (but not critical like GPS), maybe human review?
@@ -207,8 +223,8 @@ serve(async (req) => {
 
         if (updateError) throw updateError
 
-        // Submit Score to Chain (if onchain_id exists)
-        if (submission.onchain_id) {
+        // Submit Score to Chain (if onchain_id exists; skip in mock mode)
+        if (submission.onchain_id && !MOCK_AGENT) {
             try {
                 const provider = new ethers.JsonRpcProvider(Deno.env.get('RPC_URL'));
                 const wallet = new ethers.Wallet(Deno.env.get('ORACLE_PRIVATE_KEY') ?? Deno.env.get('PRIVATE_KEY') ?? '', provider);

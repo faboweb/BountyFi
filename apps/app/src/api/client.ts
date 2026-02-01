@@ -1,9 +1,11 @@
 // Real API Client (for when backend is ready)
+import { ethers } from 'ethers';
 import { API_CONFIG } from '../config/api';
 import axios, { AxiosInstance } from 'axios';
 import { authStorage } from '../auth/storage';
 import { notifyUnauthorized } from '../auth/onUnauthorized';
 import { supabase } from '../utils/supabase';
+import { getLootboxContract } from '../utils/contracts';
 import {
   AuthResponse,
   Campaign,
@@ -13,6 +15,7 @@ import {
   UserSearchResult,
   LeaderboardEntry,
   Lottery,
+  LootboxOpenResult,
   LoginRequest,
   LoginWithWalletRequest,
   CoinbaseLoginRequest,
@@ -314,12 +317,26 @@ export const lotteryApi = {
     return response.data;
   },
 
-  async open(signature: string, message: string): Promise<{ success: boolean; message: string }> {
+  /** Legacy: relay path (deducts tickets/diamonds in DB, relayer calls contract). Prefer openOnChain when user has wallet. */
+  async open(signature: string, message: string): Promise<{ success: boolean; message: string; requestId?: string }> {
     const { data, error } = await supabase.functions.invoke('relay_lootbox', {
       body: { signature, message }
     });
     if (error) throw error;
     return data;
+  },
+
+  /** On-chain: user calls Lootbox.openLootbox() from their wallet; pays 1 ticket or 10 diamonds on-chain. */
+  async openOnChain(): Promise<{ success: boolean; requestId: string }> {
+    const contract = await getLootboxContract();
+    const tx = await contract.openLootbox();
+    const receipt = await tx.wait();
+    const topic = ethers.id('LootboxRequested(uint256,address,uint256)');
+    const log = receipt?.logs?.find((l: { topics: string[] }) => l.topics[0] === topic);
+    if (!log) throw new Error('LootboxRequested event not found');
+    const parsed = contract.interface.parseLog({ topics: log.topics as string[], data: log.data });
+    const requestId = String(parsed?.args[0] ?? '');
+    return { success: true, requestId };
   },
 
   /** Campaign lootbox: open lootbox (one pull) → response is "check if won". Campaign must be ended; higher-value prizes = lower chance; may win nothing. */
@@ -333,6 +350,25 @@ export const lotteryApi = {
     if (error) throw error;
     if (data?.error) throw new Error(data.error);
     return data as CampaignLootboxPullResult;
+  },
+
+  /** Fetch indexed lootbox result by request_id (from lootbox_opens table). */
+  async getResult(requestId: string): Promise<LootboxOpenResult | null> {
+    const { data, error } = await supabase
+      .from('lootbox_opens')
+      .select('*')
+      .eq('request_id', requestId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as LootboxOpenResult | null;
+  },
+
+  /** Trigger indexer to sync lootbox result from chain (reads Lootbox.requests(requestId), resolves prize_label, upserts lootbox_opens). */
+  async syncResult(requestId: string): Promise<void> {
+    const { error } = await supabase.functions.invoke('indexer', {
+      body: { event: 'sync_lootbox_result', requestId },
+    });
+    if (error) throw error;
   },
 };
 

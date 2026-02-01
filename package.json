@@ -8,7 +8,10 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "test:e2e": "NODE_ENV=test ls tests/*.test.js | xargs -n 1 node"
+    "test:e2e": "NODE_ENV=test ls tests/*.test.js | xargs -n 1 node",
+    "test:golden": "NODE_ENV=test node tests/golden_task.test.js",
+    "test:milestone3": "NODE_ENV=test node tests/milestone3.test.js",
+    "deploy:inject_golden": "supabase functions deploy inject_golden_task"
   },
   "devDependencies": {
     "@supabase/supabase-js": "^2.93.2",

@@ -48,6 +48,14 @@ cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $TICKETS_ADDR "grantRole
 cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $TICKETS_ADDR "grantRole(bytes32,address)" $(cast keccak "MINTER_ROLE") $TRUST_ADDR
 cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $TRUST_ADDR "grantRole(bytes32,address)" $(cast keccak "RESOLVER_ROLE") $BOUNTYFI_ADDR
 
+# Grant ORACLE_ROLE to oracle (ORACLE_PRIVATE_KEY or PRIVATE_KEY if same)
+if [ -n "$ORACLE_PRIVATE_KEY" ]; then
+    ORACLE_ADDR=$(cast wallet address --private-key $ORACLE_PRIVATE_KEY 2>/dev/null || true)
+    [ -n "$ORACLE_ADDR" ] && cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $BOUNTYFI_ADDR "grantRole(bytes32,address)" $(cast keccak "ORACLE_ROLE") $ORACLE_ADDR && echo "ORACLE_ROLE granted to $ORACLE_ADDR"
+else
+    cast send --rpc-url $RPC_URL --private-key $PRIVATE_KEY $BOUNTYFI_ADDR "grantRole(bytes32,address)" $(cast keccak "ORACLE_ROLE") $(cast wallet address --private-key $PRIVATE_KEY) && echo "ORACLE_ROLE granted to deployer"
+fi
+
 echo "✅ Fresh Deployment Complete!"
 echo "BOUNTYFI_ADDRESS=$BOUNTYFI_ADDR"
 echo "BOUNTY_TOKEN_ADDRESS=$TOKEN_ADDR"
