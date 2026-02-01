@@ -1,8 +1,14 @@
 // API Configuration
+const SUPABASE_ANON_KEY_PLACEHOLDER = 'YOUR_SUPABASE_ANON_KEY_HERE';
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || SUPABASE_ANON_KEY_PLACEHOLDER;
+
 export const API_CONFIG = {
   // Supabase API (for later connection)
   SUPABASE_URL: process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://cguqjaoeleifeaxktmwv.supabase.co',
-  SUPABASE_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || 'YOUR_SUPABASE_ANON_KEY_HERE', // Replace with your actual anon key from Supabase dashboard
+  SUPABASE_PUBLISHABLE_KEY: supabaseAnonKey,
+
+  // True when a real anon key is set (not the placeholder). When false, Realtime/WebSocket is skipped to avoid connection errors.
+  isSupabaseConfigured: supabaseAnonKey !== SUPABASE_ANON_KEY_PLACEHOLDER && supabaseAnonKey.length > 0,
 
   // Mock mode toggle (default: false - do not show mock data unless explicitly enabled)
   // Set EXPO_PUBLIC_USE_MOCK_API=true in .env to enable mock data

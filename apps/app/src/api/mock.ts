@@ -18,7 +18,9 @@ import {
   ShareCardResponse,
   FaceVerificationEnrollRequest,
   FaceVerificationStatusResponse,
+  CreateCampaignRequest,
 } from './types';
+import { supabase } from '../utils/supabase';
 import {
   MOCK_USER,
   MOCK_CAMPAIGNS,
@@ -85,7 +87,7 @@ export const mockAuth = {
 };
 
 
-// Campaigns API
+// Campaigns API (getAll/getById mock; create always calls real Edge Function so submit sends a request)
 export const mockCampaigns = {
   async getAll(): Promise<Campaign[]> {
     await delay(API_CONFIG.MOCK_DELAY);
@@ -99,6 +101,31 @@ export const mockCampaigns = {
       throw new Error('Campaign not found');
     }
     return campaign;
+  },
+
+  async create(request: CreateCampaignRequest): Promise<Campaign> {
+    let userId: string | null = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id ?? null;
+    } catch (_) {}
+    const body = {
+      action: 'CREATE_CAMPAIGN' as const,
+      user_id: userId,
+      title: request.title,
+      description: request.description,
+      prize_total: request.prize_total,
+      min_funding_thb: request.min_funding_thb,
+      requires_face_recognition: request.requires_face_recognition,
+      start_date: request.start_date,
+      end_date: request.end_date,
+      checkpoints: request.checkpoints,
+      status: request.status || 'active',
+    };
+    const { data, error } = await supabase.functions.invoke('manage_campaign', { body });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data as Campaign;
   },
 };
 

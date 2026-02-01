@@ -1,12 +1,13 @@
 import { useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../utils/supabase';
+import { API_CONFIG } from '../config/api';
 
 export function useRealtime(userId?: string) {
     const queryClient = useQueryClient();
 
     useEffect(() => {
-        if (!userId) return;
+        if (!userId || !API_CONFIG.isSupabaseConfigured) return;
 
         console.log('[Realtime] Setting up subscriptions for user:', userId);
 

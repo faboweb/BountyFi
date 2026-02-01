@@ -81,11 +81,12 @@ export const authStorage = {
     const wallet = await storage.getItem(WALLET_ADDRESS_KEY);
     const email = await storage.getItem(EMAIL_KEY);
 
-    if (!id || !wallet || !email) {
+    // Require only id and wallet so OAuth / no-email sessions persist across refresh
+    if (!id || !wallet) {
       return null;
     }
 
-    return { id, wallet_address: wallet, email };
+    return { id, wallet_address: wallet, email: email ?? '' };
   },
 
   async clear(): Promise<void> {

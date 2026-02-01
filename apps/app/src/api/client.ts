@@ -2,6 +2,7 @@
 import { API_CONFIG } from '../config/api';
 import axios, { AxiosInstance } from 'axios';
 import { authStorage } from '../auth/storage';
+import { notifyUnauthorized } from '../auth/onUnauthorized';
 import { supabase } from '../utils/supabase';
 import {
   AuthResponse,
@@ -43,14 +44,13 @@ const createApiClient = (): AxiosInstance => {
     return config;
   });
 
-  // Handle 401 errors (token expired)
+  // Handle 401 errors (token expired / invalid)
   client.interceptors.response.use(
     (response) => response,
     async (error) => {
       if (error.response?.status === 401) {
-        // Clear token and redirect to login
         await authStorage.clear();
-        // Navigation will be handled by auth context
+        notifyUnauthorized(); // Auth context sets user null so login screen shows
       }
       return Promise.reject(error);
     }
@@ -111,16 +111,32 @@ export const campaignsApi = {
   },
 
   async create(request: CreateCampaignRequest): Promise<Campaign> {
-    const { data, error } = await supabase
-      .from('campaigns')
-      .insert({
-        ...request,
-        status: request.status || 'active',
-      })
-      .select()
-      .single();
+    let userId: string | null = null;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id ?? null;
+    } catch (_) {
+      // Proceed without user_id so the request is still sent
+    }
+
+    const body = {
+      action: 'CREATE_CAMPAIGN' as const,
+      user_id: userId,
+      title: request.title,
+      description: request.description,
+      prize_total: request.prize_total,
+      min_funding_thb: request.min_funding_thb,
+      requires_face_recognition: request.requires_face_recognition,
+      start_date: request.start_date,
+      end_date: request.end_date,
+      checkpoints: request.checkpoints,
+      status: request.status || 'active',
+    };
+
+    const { data, error } = await supabase.functions.invoke('manage_campaign', { body });
 
     if (error) throw error;
+    if (data?.error) throw new Error(data.error);
     return data as Campaign;
   },
 };
@@ -149,13 +165,24 @@ export const submissionsApi = {
   },
 
   async getPending(): Promise<Submission[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    const validatorId = user?.id;
+    if (!validatorId) return [];
+
     const { data: pending, error } = await supabase.functions.invoke('get_tasks', {
-      body: { validator_id: (await supabase.auth.getUser()).data.user?.id }
+      body: { validator_id: validatorId }
     });
     if (error) {
-      console.warn('get_tasks function failed, falling back to REST', error);
-      // Fallback or empty
-      return [];
+      console.warn('get_tasks function failed, falling back to RPC', error);
+      // Fallback: call the same RPC the Edge Function uses (works when function is not deployed or CORS blocks)
+      const { data: fallback, error: rpcError } = await supabase.rpc('get_validator_tasks', {
+        v_id: validatorId
+      });
+      if (rpcError) {
+        console.warn('get_validator_tasks RPC fallback failed', rpcError);
+        return [];
+      }
+      return (fallback || []) as Submission[];
     }
     return pending || [];
   },

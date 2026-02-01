@@ -2,7 +2,16 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 import { ethers } from "https://esm.sh/ethers@5.7.2"
 
+const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+}
+
 serve(async (req) => {
+    if (req.method === 'OPTIONS') {
+        return new Response('ok', { headers: corsHeaders })
+    }
+
     const supabaseClient = createClient(
         Deno.env.get('SUPABASE_URL') ?? '',
         Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -20,7 +29,34 @@ serve(async (req) => {
                 .select()
                 .single()
             if (error) throw error
-            return new Response(JSON.stringify(profile), { headers: { "Content-Type": "application/json" } })
+            return new Response(JSON.stringify(profile), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
+        }
+
+        if (action === 'CREATE_CAMPAIGN') {
+            const { user_id, title, description, prize_total, min_funding_thb, requires_face_recognition, start_date, end_date, checkpoints, status } = data
+            if (!title) throw new Error("title is required")
+            const row = {
+                title,
+                description: description ?? null,
+                prize_total: prize_total ?? null,
+                prize_pool: prize_total ?? null,
+                min_funding_thb: min_funding_thb ?? null,
+                requires_face_recognition: !!requires_face_recognition,
+                start_date: start_date ?? null,
+                end_date: end_date ?? null,
+                deadline: end_date ?? null,
+                checkpoints: checkpoints ?? null,
+                status: status ?? 'active',
+                donator_id: user_id ?? null,
+                current_pool: prize_total ?? 0,
+            }
+            const { data: campaign, error } = await supabaseClient
+                .from('campaigns')
+                .insert(row)
+                .select()
+                .single()
+            if (error) throw error
+            return new Response(JSON.stringify(campaign), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
         }
 
         if (action === 'ADD_DONATION') {
@@ -59,7 +95,7 @@ serve(async (req) => {
                 .eq('id', campaign_id)
             if (updateError) throw updateError
 
-            return new Response(JSON.stringify({ donation, newPool }), { headers: { "Content-Type": "application/json" } })
+            return new Response(JSON.stringify({ donation, newPool }), { headers: { ...corsHeaders, "Content-Type": "application/json" } })
         }
 
         throw new Error("Invalid action")
@@ -67,7 +103,7 @@ serve(async (req) => {
     } catch (error) {
         return new Response(
             JSON.stringify({ error: error.message }),
-            { status: 500, headers: { "Content-Type": "application/json" } },
+            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         )
     }
 })

@@ -52,8 +52,7 @@ export function TeamScreen() {
               <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
                 <Text style={styles.learnSectionTitle}>Wins (as a team)</Text>
                 <Text style={styles.learnBullet}>• Trust Streak: 5 consecutive active days with no failed audits unlocks a reward</Text>
-                <Text style={styles.learnSubBullet}>– Diamond multiplier (e.g. +2 per verification) or</Text>
-                <Text style={styles.learnSubBullet}>– A shield (one mistake doesn't count)</Text>
+                <Text style={styles.learnSubBullet}>– Diamond multiplier (e.g. +2 per verification)</Text>
                 <Text style={styles.learnBullet}>• Network Level: Correct verifications earn XP and unlock team titles</Text>
 
                 <Text style={styles.learnSectionTitle}>Mistakes</Text>
