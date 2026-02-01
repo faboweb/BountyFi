@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Constants from 'expo-constants';
 import { useAuth } from '../../auth/context';
+import { authStorage } from '../../auth/storage';
 
 export function AuthScreen() {
   const [email, setEmail] = useState('');
@@ -22,7 +23,7 @@ export function AuthScreen() {
   const [referralCode, setReferralCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showOtpInput, setShowOtpInput] = useState(false);
-  const { initiateEmailLogin, verifyOTPAndLogin, loginWithOAuth, hardReset, isCDPAuthenticated, clearCDPSession } = useAuth();
+  const { initiateEmailLogin, verifyOTPAndLogin, loginWithOAuth, hardReset, isCDPAuthenticated, clearCDPSession, isLoading: authLoading } = useAuth();
 
   const isExpoGo = Constants.appOwnership === 'expo';
   const isWeb = Platform.OS === 'web';
@@ -31,16 +32,23 @@ export function AuthScreen() {
     console.log('[AuthScreen] showOtpInput changed to:', showOtpInput);
   }, [showOtpInput]);
 
-  // Clear stale CDP sessions on mount
+  // Clear only truly stale CDP sessions: CDP says signed in but we have no persisted session.
+  // Run only after auth has finished loading so we don't clear CDP before checkAuth restores from storage.
   useEffect(() => {
+    if (authLoading) return; // Wait for checkAuth to complete so we don't race and clear a valid session
     const cleanupStaleCDPSession = async () => {
-      if (isCDPAuthenticated) {
-        console.log('[AuthScreen] Detected stale CDP session, cleaning up...');
+      if (!isCDPAuthenticated) return;
+      try {
+        const token = await authStorage.getToken();
+        if (token) return; // Persisted session exists – do not clear CDP
+        console.log('[AuthScreen] Detected stale CDP session (no stored session), cleaning up...');
         await clearCDPSession();
+      } catch (e) {
+        console.warn('[AuthScreen] Cleanup check failed:', e);
       }
     };
     cleanupStaleCDPSession();
-  }, []);
+  }, [authLoading, isCDPAuthenticated, clearCDPSession]);
 
   const handleHardReset = async () => {
     Alert.alert(

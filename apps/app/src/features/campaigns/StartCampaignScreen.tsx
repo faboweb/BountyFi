@@ -102,6 +102,7 @@ export function StartCampaignScreen() {
         end_date: new Date(Date.now() + (parseInt(durationDays, 10) || 7) * 24 * 60 * 60 * 1000).toISOString(),
         checkpoints: [
           {
+            id: 'cp-0',
             name: locationName || 'Main Location',
             lat: pin.latitude,
             lng: pin.longitude,

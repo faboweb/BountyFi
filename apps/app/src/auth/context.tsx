@@ -1,6 +1,7 @@
 // Auth Context
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
 import { authStorage } from './storage';
+import { setOnUnauthorized } from './onUnauthorized';
 import { api } from '../api/client';
 import { API_CONFIG } from '../config/api';
 import { AuthResponse, User } from '../api/types';
@@ -66,14 +67,94 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
   }, []);
 
+  // When API returns 401, client clears storage and notifies here so we clear user and show login
+  useEffect(() => {
+    setOnUnauthorized(() => setUser(null));
+    return () => setOnUnauthorized(null);
+  }, []);
+
+  // Persist CDP session to storage when CDP is signed in (OAuth or rehydration after refresh)
+  // so login survives refresh and hot reload until user explicitly logs out
+  useEffect(() => {
+    if (!isSignedInCDP || !evmAddress || user) return;
+
+    const walletAddress = evmAddress;
+    let cancelled = false;
+    (async () => {
+      try {
+        const cdpToken = await getAccessToken();
+        if (!cdpToken || cancelled) return;
+
+        const savedEmail = await authStorage.getCDPEmail();
+        const email = savedEmail || '';
+
+        await authStorage.saveToken(cdpToken);
+        await authStorage.saveCDPAccessToken(cdpToken);
+        if (email) await authStorage.saveCDPEmail(email);
+        await authStorage.saveUser({
+          id: walletAddress,
+          wallet_address: walletAddress,
+          email,
+        });
+
+        if (cancelled) return;
+        setUser({
+          id: walletAddress,
+          email,
+          wallet_address: walletAddress,
+          tickets: 0,
+          referral_code: '',
+          validations_completed: 0,
+          accuracy_rate: 0,
+          diamonds: 0,
+          audit_fail_count: 0,
+          trusted_network_ids: [],
+        });
+        console.log('[AuthContext] Persisted CDP session to storage:', walletAddress);
+      } catch (e) {
+        if (!cancelled) console.warn('[AuthContext] Sync CDP to storage failed:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isSignedInCDP, evmAddress, user]);
+
+  // After refresh: we restored user from storage but token may be expired. When CDP rehydrates,
+  // refresh the token from CDP so API calls don't get 401 and trigger logout. Then show app.
+  useEffect(() => {
+    if (!user || !isSignedInCDP || !evmAddress) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const cdpToken = await getAccessToken();
+        if (!cdpToken || cancelled) return;
+
+        await authStorage.saveToken(cdpToken);
+        await authStorage.saveCDPAccessToken(cdpToken);
+        if (!cancelled) {
+          setIsLoading(false);
+          console.log('[AuthContext] Refreshed token after CDP rehydration, session ready');
+        }
+      } catch (e) {
+        if (!cancelled) {
+          console.warn('[AuthContext] Token refresh after rehydration failed:', e);
+          setIsLoading(false); // Still show app so user isn't stuck
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user, isSignedInCDP, evmAddress]);
+
   const checkAuth = async () => {
+    let restoredFromStorage = false;
     try {
       const token = await authStorage.getToken();
       const savedUser = await authStorage.getUser();
 
       if (token && savedUser) {
-        // Restore user from local storage (client-only flow)
+        // Restore user from local storage – keep session until user logs out
         console.log('[AuthContext] Restoring session from storage:', savedUser.wallet_address);
+        restoredFromStorage = true;
 
         const userData: User = {
           id: savedUser.id,
@@ -89,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         };
 
         setUser(userData);
+        // Don't set isLoading false here – wait for token refresh (CDP rehydration) so we don't hit 401 with expired token
       } else if (API_CONFIG.USE_MOCK_API) {
         // Testing only: skip login, use stub user so we can test the app without signing in
         const stubUser: User = {
@@ -106,11 +188,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(stubUser);
       }
     } catch (error) {
+      // Do not clear storage on error – keep persisted session so refresh/reload doesn't lock user out
       console.error('Auth check failed:', error);
-      await authStorage.clear();
+      restoredFromStorage = false;
+      try {
+        const token = await authStorage.getToken();
+        const savedUser = await authStorage.getUser();
+        if (token && savedUser) {
+          restoredFromStorage = true;
+          setUser({
+            id: savedUser.id,
+            email: savedUser.email,
+            wallet_address: savedUser.wallet_address,
+            tickets: 0,
+            referral_code: '',
+            validations_completed: 0,
+            accuracy_rate: 0,
+            diamonds: 0,
+            audit_fail_count: 0,
+            trusted_network_ids: [],
+          });
+        }
+      } catch (fallbackError) {
+        console.warn('Fallback restore failed:', fallbackError);
+      }
       if (API_CONFIG.USE_MOCK_API) {
-        // Still allow testing: set stub user so app is usable
-        setUser({
+        restoredFromStorage = false;
+        const stubUser: User = {
           id: 'test-user-id',
           email: 'test@bountyfi.app',
           wallet_address: '0x0000000000000000000000000000000000000000',
@@ -121,12 +225,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           diamonds: 12,
           audit_fail_count: 0,
           trusted_network_ids: [],
-        });
+        };
+        setUser(stubUser);
       }
     } finally {
-      setIsLoading(false);
+      // When we restored from storage we wait for token refresh (see effect below) before showing app
+      if (!restoredFromStorage) {
+        setIsLoading(false);
+      }
     }
   };
+
+  // Fallback: if we restored user but CDP never rehydrates, stop loading after 2.5s so user isn't stuck
+  useEffect(() => {
+    if (!user || !isLoading) return;
+    const t = setTimeout(() => {
+      setIsLoading(false);
+      console.log('[AuthContext] Restored session ready (fallback timeout)');
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [user]);
 
   const initiateEmailLogin = async (email: string): Promise<string> => {
     try {
@@ -336,7 +454,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (e) { /* ignore */ }
 
     setUser(null);
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.location) {
       window.location.reload(); // Hard reload on Web to ensure SDK re-initializes
     }
   };

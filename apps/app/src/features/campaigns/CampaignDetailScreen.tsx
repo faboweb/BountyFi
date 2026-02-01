@@ -50,6 +50,7 @@ export function CampaignDetailScreen() {
   const isCleanup = campaign.quest_type === 'uniserv_cleanup' || title.toLowerCase().includes('clean');
   const checkpoints = campaign.checkpoints ?? [];
   const firstCheckpoint = checkpoints[0];
+  const firstCheckpointId = firstCheckpoint?.id ?? 'cp-0';
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -89,8 +90,8 @@ export function CampaignDetailScreen() {
         {checkpoints.length > 0 && (
           <View style={styles.checkpointList}>
             <Text style={styles.checkpointListTitle}>Checkpoints</Text>
-            {checkpoints.map((cp: { id: string; name?: string; radius: number }, index: number) => (
-              <View key={cp.id} style={styles.checkpointItem}>
+            {checkpoints.map((cp: { id?: string; name?: string; radius: number }, index: number) => (
+              <View key={cp.id ?? `cp-${index}`} style={styles.checkpointItem}>
                 <LinearGradient
                   colors={[Colors.ivoryBlue, Colors.ivoryBlueLight]}
                   start={{ x: 0, y: 0 }}
@@ -122,7 +123,7 @@ export function CampaignDetailScreen() {
             </View>
           ) : (
             <Text style={styles.prizeChestFallback}>
-              Complete the quest and redeem tickets for prizes. Pool: {campaign.prize_total} THB.
+              Complete the quest and redeem tickets for prizes. Pool: {(campaign.prize_total ?? campaign.prize_pool) ?? 0} THB.
             </Text>
           )}
         </View>
@@ -151,7 +152,7 @@ export function CampaignDetailScreen() {
             title="Start mission"
             onPress={() => {
               if (firstCheckpoint) {
-                navigation.navigate('SubmitProof', { campaignId, checkpointId: firstCheckpoint.id });
+                navigation.navigate('SubmitProof', { campaignId, checkpointId: firstCheckpointId });
               }
             }}
             variant="primary"

@@ -33,6 +33,7 @@ export interface Campaign {
   title: string;
   description: string;
   prize_total: number;
+  prize_pool?: number; // DB column; prefer prize_total for display
   min_funding_thb: number; // Minimum funding required (≥ 50 THB)
   requires_face_recognition: boolean; // If true, users must enroll selfie before participating
   start_date: string;

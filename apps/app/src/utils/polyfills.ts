@@ -29,3 +29,20 @@ if (!g.crypto.subtle) {
 (global as any).crypto = g.crypto;
 if (typeof globalThis !== 'undefined') (globalThis as any).crypto = g.crypto;
 if (typeof g.window !== 'undefined') g.window.crypto = g.crypto;
+
+// Avoid "Cannot read property 'href' / 'search' of undefined" when code (e.g. CDP, navigation) reads location before runtime is ready
+if (typeof g.window !== 'undefined' && !g.window.location) {
+  (g.window as any).location = {
+    href: '',
+    search: '',
+    pathname: '/',
+    hash: '',
+    host: '',
+    hostname: '',
+    origin: '',
+    port: '',
+    protocol: 'https:',
+    reload: () => {},
+    replace: () => {},
+  };
+}

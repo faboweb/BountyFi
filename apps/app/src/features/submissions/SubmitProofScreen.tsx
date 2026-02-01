@@ -11,6 +11,7 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Modal,
 } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -69,12 +70,15 @@ export function SubmitProofScreen() {
   const totalSteps = isSinglePhotoQuest ? 3 : 4; // selfie, before/single, after (or review), review
 
   const [step, setStep] = useState(0);
+  const [rulesAcknowledged, setRulesAcknowledged] = useState(false);
   const [selfiePhoto, setSelfiePhoto] = useState<PhotoData | null>(null);
   const [beforePhoto, setBeforePhoto] = useState<PhotoData | null>(null);
   const [afterPhoto, setAfterPhoto] = useState<PhotoData | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
 
-  const checkpoint = campaign?.checkpoints.find((c: Checkpoint) => c.id === checkpointId);
+  const checkpoint =
+    campaign?.checkpoints.find((c: Checkpoint) => c.id === checkpointId) ??
+    (checkpointId === 'cp-0' && campaign?.checkpoints?.length ? campaign.checkpoints[0] : undefined);
 
   const sponsorAd = useMemo(() => {
     const sponsors = campaign?.sponsors;
@@ -321,6 +325,52 @@ export function SubmitProofScreen() {
     );
   }
 
+  // Quest Rules & Proof modal – shown once before camera
+  if (!rulesAcknowledged) {
+    return (
+      <View style={styles.container}>
+        <Modal visible animationType="slide" transparent>
+          <View style={styles.rulesModalOverlay}>
+            <View style={styles.rulesModalContent}>
+              <Text style={styles.rulesModalTitle}>Quest Rules & Proof</Text>
+              <Text style={styles.rulesModalSubtitle}>Before you start, read carefully.</Text>
+              <ScrollView style={styles.rulesModalScroll} showsVerticalScrollIndicator={false}>
+                <Text style={styles.rulesModalSectionTitle}>Campaign goal</Text>
+                <Text style={styles.rulesModalBody}>
+                  This quest requires real-world impact. You must complete the task and submit accurate proof.
+                </Text>
+
+                <Text style={styles.rulesModalSectionTitle}>Proof & verification</Text>
+                <Text style={styles.rulesModalBody}>
+                  Your proof will be reviewed by the network.
+                  It must clearly show that the quest requirements are met.
+                </Text>
+
+                <Text style={styles.rulesModalSectionTitle}>If your proof is incorrect</Text>
+                <Text style={styles.rulesModalBullet}>• 1st time: −1 diamond</Text>
+                <Text style={styles.rulesModalBullet}>• 2nd time: −5 diamonds</Text>
+                <Text style={styles.rulesModalBullet}>• 3rd time: −1 full ticket</Text>
+
+                <Text style={styles.rulesModalBody}>
+                  These rules are strict and apply to everyone.
+                </Text>
+              </ScrollView>
+              <TouchableOpacity
+                style={styles.rulesModalButton}
+                onPress={() => setRulesAcknowledged(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.rulesModalButtonText}>
+                  Only continue if you're ready to complete the quest honestly.
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+      </View>
+    );
+  }
+
   const reviewStep = isSinglePhotoQuest ? 2 : 3;
 
   return (
@@ -337,6 +387,10 @@ export function SubmitProofScreen() {
             <Text style={styles.description}>
               Take a selfie with the front camera. GPS is recorded with your photo.
             </Text>
+            <View style={styles.photoRequirements}>
+              <Text style={styles.photoRequirementsTitle}>Photo requirements</Text>
+              <Text style={styles.photoRequirementsBullet}>• Selfies: your face must be fully visible, no glasses, no smile – passport photo style.</Text>
+            </View>
             {(validationErrors.length > 0 || cameraError) ? (
               <View style={styles.inlineError}>
                 <Text style={styles.inlineErrorText}>{cameraError || validationErrors[0]}</Text>
@@ -393,6 +447,10 @@ export function SubmitProofScreen() {
                   ? 'Show veggies or fruits in a tote-bag or something non-plastic. GPS is recorded.'
                   : 'Take a wide shot of the area before cleanup. GPS is recorded.'}
             </Text>
+            <View style={styles.photoRequirements}>
+              <Text style={styles.photoRequirementsTitle}>Photo requirements</Text>
+              <Text style={styles.photoRequirementsBullet}>• Capture a wide angle of the scene so the change is obvious.</Text>
+            </View>
             {(validationErrors.length > 0 || cameraError) ? (
               <View style={styles.inlineError}>
                 <Text style={styles.inlineErrorText}>{cameraError || validationErrors[0]}</Text>
@@ -442,6 +500,10 @@ export function SubmitProofScreen() {
             <Text style={styles.description}>
               Take the same angle after cleanup. At least 1 minute must pass between before and after.
             </Text>
+            <View style={styles.photoRequirements}>
+              <Text style={styles.photoRequirementsTitle}>Photo requirements</Text>
+              <Text style={styles.photoRequirementsBullet}>• Capture a wide angle of the scene so the change is obvious.</Text>
+            </View>
             {(validationErrors.length > 0 || cameraError) ? (
               <View style={styles.inlineError}>
                 <Text style={styles.inlineErrorText}>{cameraError || validationErrors[0]}</Text>
@@ -562,6 +624,25 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 24,
   },
+  photoRequirements: {
+    backgroundColor: '#F0F4F8',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#5B8DAF',
+  },
+  photoRequirementsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+    marginBottom: 6,
+  },
+  photoRequirementsBullet: {
+    fontSize: 14,
+    color: '#555',
+    lineHeight: 20,
+  },
   inlineError: {
     backgroundColor: '#FFF0F0',
     padding: 12,
@@ -632,5 +713,68 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#5B8DAF',
     marginTop: 10,
+  },
+  // Quest Rules & Proof modal
+  rulesModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  rulesModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    maxWidth: 400,
+    width: '100%',
+    maxHeight: '85%',
+  },
+  rulesModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  rulesModalSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  rulesModalScroll: {
+    maxHeight: 360,
+    marginBottom: 20,
+  },
+  rulesModalSectionTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  rulesModalBody: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  rulesModalBullet: {
+    fontSize: 15,
+    color: '#333',
+    lineHeight: 22,
+    marginLeft: 8,
+    marginBottom: 4,
+  },
+  rulesModalButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+  },
+  rulesModalButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+    textAlign: 'center',
   },
 });
